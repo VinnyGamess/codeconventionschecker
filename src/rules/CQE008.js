@@ -1,13 +1,18 @@
-// src/rules/CQE008.js — No magic numbers (except 0, 1, -1)
+// src/rules/CQE008.js — No magic numbers (configurable whitelist)
 
 const { TOKEN_TYPES } = require('../tokenizer');
 
-const ALLOWED = new Set(['0', '1']);
+const DEFAULT_ALLOWED = new Set(['0', '1']);
 
 module.exports = {
   id: 'CQE008',
   name: 'No magic numbers',
-  checkTokens(tokens) {
+  checkTokens(tokens, config) {
+    // Build allowed set from config whitelist
+    const whitelist = config && Array.isArray(config.magicNumberWhitelist)
+      ? new Set(config.magicNumberWhitelist.map(n => String(n)))
+      : DEFAULT_ALLOWED;
+
     const errors = [];
     const filtered = tokens.filter(t => t.type !== TOKEN_TYPES.NEWLINE);
 
@@ -18,18 +23,18 @@ module.exports = {
       // Strip suffixes for comparison
       const raw = t.value.replace(/[fFdDmMlLuU]$/g, '');
 
-      // Allow 0 and 1
-      if (ALLOWED.has(raw)) continue;
+      // Allow whitelisted values
+      if (whitelist.has(raw)) continue;
 
       // Allow -1: check if preceded by unary minus
       if (raw === '1' || raw === '1.0') continue; // already allowed above
       const prev = filtered[i - 1];
       if (prev && prev.value === '-' && raw === '1') continue;
 
-      // Check for -1 as a negative literal
+      // Check for negative literal in whitelist
       if (prev && prev.value === '-') {
         const rawWithMinus = '-' + raw;
-        if (rawWithMinus === '-1') continue;
+        if (whitelist.has(rawWithMinus)) continue;
       }
 
       // Skip numbers in const declarations (they're named constants)

@@ -1,6 +1,7 @@
 // src/parser.js
 // Light parser: walks the token stream and extracts structural declarations
-// (classes, methods, fields, variables, if-statements) with their modifiers.
+// (classes, methods, fields, variables, if-statements) with their modifiers
+// and attributes (e.g. [SerializeField], [Header("...")]).
 
 const { TOKEN_TYPES, ACCESS_MODIFIERS, MODIFIERS } = require('./tokenizer');
 
@@ -40,6 +41,55 @@ function parse(tokens) {
 
   function hasAccessModifier(mods) {
     return mods.some(m => ACCESS_MODIFIERS.has(m));
+  }
+
+  // Collect C# attributes: [Foo], [Foo("bar")], [Foo, Bar], [System.Serializable]
+  // Returns an array of attribute name strings.
+  function collectAttributes() {
+    const attrs = [];
+    while (i < filtered.length && current() && current().value === '[') {
+      advance(); // skip [
+      // Read attribute names until we hit ]
+      while (i < filtered.length && current() && current().value !== ']') {
+        const t = current();
+        // Attribute name: identifier (possibly dotted like System.Serializable)
+        if (t.type === TOKEN_TYPES.IDENTIFIER || t.type === TOKEN_TYPES.KEYWORD) {
+          let name = t.value;
+          advance();
+          // Handle dotted names: System.Serializable
+          while (i < filtered.length && current() && current().value === '.') {
+            advance(); // skip .
+            if (i < filtered.length && current()) {
+              name = current().value; // take last part as the simple name
+              advance();
+            }
+          }
+          attrs.push(name);
+          // Skip attribute arguments: (...)
+          if (i < filtered.length && current() && current().value === '(') {
+            let parenDepth = 0;
+            while (i < filtered.length) {
+              if (current().value === '(') parenDepth++;
+              else if (current().value === ')') {
+                parenDepth--;
+                if (parenDepth === 0) { advance(); break; }
+              }
+              advance();
+            }
+          }
+          // Skip commas between multiple attrs in one bracket set: [Foo, Bar]
+          if (i < filtered.length && current() && current().value === ',') {
+            advance();
+          }
+        } else {
+          advance(); // skip unexpected tokens
+        }
+      }
+      if (i < filtered.length && current() && current().value === ']') {
+        advance(); // skip ]
+      }
+    }
+    return attrs;
   }
 
   function skipBlock() {
@@ -187,6 +237,9 @@ function parse(tokens) {
       continue;
     }
 
+    // Collect attributes (e.g. [Serializable])
+    const topAttrs = collectAttributes();
+
     // Collect modifiers
     const modifiers = [];
     const modStart = current();
@@ -210,6 +263,7 @@ function parse(tokens) {
           kind: declType,
           name: nameToken.value,
           modifiers,
+          attributes: topAttrs,
           hasAccessModifier: hasAccessModifier(modifiers),
           line: nameToken.line,
           col: nameToken.col,
@@ -236,7 +290,8 @@ function parse(tokens) {
               continue;
             }
 
-            // Inside class body: detect members
+            // Inside class body: collect attributes, then modifiers
+            const memberAttrs = collectAttributes();
             const memberMods = [];
             while (i < filtered.length && isModifier(current())) {
               memberMods.push(advance().value);
@@ -258,6 +313,7 @@ function parse(tokens) {
                   kind: nestedType,
                   name: nName.value,
                   modifiers: memberMods,
+                  attributes: memberAttrs,
                   hasAccessModifier: hasAccessModifier(memberMods),
                   line: nName.line,
                   col: nName.col,
@@ -312,6 +368,7 @@ function parse(tokens) {
                     kind: 'method',
                     name: memberName.value,
                     modifiers: memberMods,
+                    attributes: memberAttrs,
                     hasAccessModifier: hasAccessModifier(memberMods),
                     line: memberName.line,
                     col: memberName.col,
@@ -345,7 +402,9 @@ function parse(tokens) {
                   nodes.push({
                     kind: 'field',
                     name: memberName.value,
+                    typeName: returnType,
                     modifiers: memberMods,
+                    attributes: memberAttrs,
                     hasAccessModifier: hasAccessModifier(memberMods),
                     line: memberName.line,
                     col: memberName.col,
@@ -369,6 +428,7 @@ function parse(tokens) {
                 kind: 'method',
                 name: mc.value,
                 modifiers: memberMods,
+                attributes: memberAttrs,
                 hasAccessModifier: hasAccessModifier(memberMods),
                 isConstructor: true,
                 line: mc.line,

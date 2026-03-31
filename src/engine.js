@@ -5,13 +5,14 @@ const { removeComments } = require('./preprocessor');
 const { tokenize } = require('./tokenizer');
 const { parse } = require('./parser');
 const { runRules } = require('./rules');
+const { reportError } = require('./reporter');
 
-function analyzeFile(filePath) {
+function analyzeFile(filePath, config) {
   const source = readFile(filePath);
   const cleaned = removeComments(source);
   const tokens = tokenize(cleaned);
   const nodes = parse(tokens);
-  const errors = runRules(nodes, tokens);
+  const errors = runRules(nodes, tokens, config);
 
   return errors.map(err => ({
     ...err,
@@ -20,7 +21,7 @@ function analyzeFile(filePath) {
 }
 
 function formatError(err) {
-  return `[ERROR] ${err.file}:${err.line} \u2192 ${err.rule}: ${err.message} | Suggestion: ${err.suggestion}`;
+  return reportError(err);
 }
 
 module.exports = { analyzeFile, formatError };
