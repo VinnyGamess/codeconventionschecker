@@ -1,5 +1,4 @@
-// src/rules/CQE002.js — Access modifiers required
-// Every class, method, and field must have an explicit access modifier.
+
 
 module.exports = {
   id: 'CQE002',
@@ -10,7 +9,7 @@ module.exports = {
 
     for (const node of nodes) {
       if (!applicable.includes(node.kind)) continue;
-      if (node.isConstructor) continue; // static constructors don't need access modifiers
+      if (node.isConstructor) continue;
 
       if (!node.hasAccessModifier) {
         errors.push({

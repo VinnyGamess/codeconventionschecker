@@ -1,5 +1,4 @@
-// src/reader.js
-// Recursively finds and reads .cs files from a directory or single file path.
+
 
 const fs = require('fs');
 const path = require('path');

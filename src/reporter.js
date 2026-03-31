@@ -1,9 +1,7 @@
-// src/reporter.js — Coloured reporter with source snippets (no external libs)
-// Uses ANSI escape codes for colour output in terminals that support it.
+
 
 const fs = require('fs');
 
-// ANSI colour codes
 const ANSI = {
   reset: '\x1b[0m',
   bold: '\x1b[1m',
@@ -18,7 +16,6 @@ const ANSI = {
   underline: '\x1b[4m',
 };
 
-// Cache file contents so we don't re-read for every error in the same file
 const fileCache = new Map();
 
 function getLines(filePath) {
@@ -70,7 +67,6 @@ function reportError(err) {
   let output = `\n${location}\n`;
   output += `  ${sev} ${rule}  ${message}\n`;
 
-  // Show confidence score when present (heuristic rules)
   if (typeof err.confidence === 'number') {
     const conf = err.confidence;
     const bar = renderConfidenceBar(conf);
@@ -81,7 +77,6 @@ function reportError(err) {
     output += `  ${suggestion}\n`;
   }
 
-  // Show snippet if we have the file path
   if (err.file && err.line) {
     const snippet = formatSnippet(err.file, err.line);
     if (snippet) output += snippet;
@@ -95,7 +90,6 @@ function renderConfidenceBar(confidence) {
   const filled = Math.round(confidence * width);
   const empty = width - filled;
 
-  // Colour based on severity: green < 0.4, yellow < 0.7, red >= 0.7
   let colour;
   if (confidence < 0.4) colour = ANSI.green;
   else if (confidence < 0.7) colour = ANSI.yellow;

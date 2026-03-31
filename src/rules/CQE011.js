@@ -1,6 +1,4 @@
-// src/rules/CQE011.js — Heuristic naming quality (bad/non-English/mixed names)
-// Uses the heuristic learning engine to detect poor identifier names.
-// Severity: warning (heuristic, not deterministic).
+
 
 const { analyseIdentifier } = require('../heuristic');
 

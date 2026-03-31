@@ -1,7 +1,4 @@
-// src/parser.js
-// Light parser: walks the token stream and extracts structural declarations
-// (classes, methods, fields, variables, if-statements) with their modifiers
-// and attributes (e.g. [SerializeField], [Header("...")]).
+
 
 const { TOKEN_TYPES, ACCESS_MODIFIERS, MODIFIERS } = require('./tokenizer');
 
@@ -43,29 +40,27 @@ function parse(tokens) {
     return mods.some(m => ACCESS_MODIFIERS.has(m));
   }
 
-  // Collect C# attributes: [Foo], [Foo("bar")], [Foo, Bar], [System.Serializable]
-  // Returns an array of attribute name strings.
   function collectAttributes() {
     const attrs = [];
     while (i < filtered.length && current() && current().value === '[') {
-      advance(); // skip [
-      // Read attribute names until we hit ]
+      advance();
+
       while (i < filtered.length && current() && current().value !== ']') {
         const t = current();
-        // Attribute name: identifier (possibly dotted like System.Serializable)
+
         if (t.type === TOKEN_TYPES.IDENTIFIER || t.type === TOKEN_TYPES.KEYWORD) {
           let name = t.value;
           advance();
-          // Handle dotted names: System.Serializable
+
           while (i < filtered.length && current() && current().value === '.') {
-            advance(); // skip .
+            advance();
             if (i < filtered.length && current()) {
-              name = current().value; // take last part as the simple name
+              name = current().value;
               advance();
             }
           }
           attrs.push(name);
-          // Skip attribute arguments: (...)
+
           if (i < filtered.length && current() && current().value === '(') {
             let parenDepth = 0;
             while (i < filtered.length) {
@@ -77,23 +72,23 @@ function parse(tokens) {
               advance();
             }
           }
-          // Skip commas between multiple attrs in one bracket set: [Foo, Bar]
+
           if (i < filtered.length && current() && current().value === ',') {
             advance();
           }
         } else {
-          advance(); // skip unexpected tokens
+          advance();
         }
       }
       if (i < filtered.length && current() && current().value === ']') {
-        advance(); // skip ]
+        advance();
       }
     }
     return attrs;
   }
 
   function skipBlock() {
-    // Skip a { ... } block, handling nesting
+
     if (!current() || current().value !== '{') return;
     let depth = 0;
     while (i < filtered.length) {
@@ -107,10 +102,9 @@ function parse(tokens) {
   }
 
   function parseBody() {
-    // Parse statements inside a class/method body for variable declarations
-    // and if-statements. Also handles nested classes/methods.
+
     if (!current() || current().value !== '{') return;
-    advance(); // skip {
+    advance();
     let depth = 1;
 
     while (i < filtered.length && depth > 0) {
@@ -125,8 +119,6 @@ function parse(tokens) {
         continue;
       }
 
-      // Look for variable declarations: type name = ... ;
-      // or: var name = ... ;
       const t = current();
       if (t.type === TOKEN_TYPES.KEYWORD && t.value === 'if') {
         nodes.push({
@@ -138,15 +130,13 @@ function parse(tokens) {
         continue;
       }
 
-      // Try to detect local variable: type identifier (=|;|,)
       if (isType(t) && !isControlKeyword(t.value)) {
         const next = peek(1);
         const afterNext = peek(2);
 
         if (next && next.type === TOKEN_TYPES.IDENTIFIER &&
             afterNext && (afterNext.value === '=' || afterNext.value === ';' || afterNext.value === ',')) {
-          // Handle generic type: Type<T> name
-          // Simple case: type name = ...
+
           nodes.push({
             kind: 'variable',
             name: next.value,
@@ -154,12 +144,11 @@ function parse(tokens) {
             line: next.line,
             col: next.col,
           });
-          advance(); // type
-          advance(); // name
+          advance();
+          advance();
           continue;
         }
 
-        // Handle generic types: Type<...> name
         if (next && next.value === '<') {
           let j = i + 2;
           let angleDepth = 1;
@@ -184,7 +173,6 @@ function parse(tokens) {
           }
         }
 
-        // Array types: type[] name
         if (next && next.value === '[' && peek(2) && peek(2).value === ']') {
           const arrName = peek(3);
           if (arrName && arrName.type === TOKEN_TYPES.IDENTIFIER) {
@@ -218,29 +206,24 @@ function parse(tokens) {
             'delegate', 'event'].includes(value);
   }
 
-  // Top-level parse loop
   while (i < filtered.length) {
     const t = current();
 
-    // Skip using directives
     if (t.type === TOKEN_TYPES.KEYWORD && t.value === 'using') {
       while (i < filtered.length && current().value !== ';') advance();
-      if (i < filtered.length) advance(); // skip ;
+      if (i < filtered.length) advance();
       continue;
     }
 
-    // Skip namespace — just enter its block
     if (t.type === TOKEN_TYPES.KEYWORD && t.value === 'namespace') {
-      advance(); // namespace
+      advance();
       while (i < filtered.length && current().value !== '{') advance();
-      if (i < filtered.length) advance(); // skip {
+      if (i < filtered.length) advance();
       continue;
     }
 
-    // Collect attributes (e.g. [Serializable])
     const topAttrs = collectAttributes();
 
-    // Collect modifiers
     const modifiers = [];
     const modStart = current();
     while (i < filtered.length && isModifier(current())) {
@@ -251,12 +234,11 @@ function parse(tokens) {
 
     const curr = current();
 
-    // Class / struct / interface / enum / record
     if (curr.type === TOKEN_TYPES.KEYWORD &&
         (curr.value === 'class' || curr.value === 'struct' || curr.value === 'interface' ||
          curr.value === 'enum' || curr.value === 'record')) {
       const declType = curr.value;
-      advance(); // class/struct/interface/enum/record
+      advance();
       const nameToken = current();
       if (nameToken && (nameToken.type === TOKEN_TYPES.IDENTIFIER || nameToken.type === TOKEN_TYPES.KEYWORD)) {
         nodes.push({
@@ -268,14 +250,12 @@ function parse(tokens) {
           line: nameToken.line,
           col: nameToken.col,
         });
-        advance(); // name
+        advance();
 
-        // Skip generic params, base class, constraints etc until {
         while (i < filtered.length && current().value !== '{') advance();
 
-        // Parse class body for members
         if (i < filtered.length && current().value === '{') {
-          advance(); // skip {
+          advance();
           let depth = 1;
           while (i < filtered.length && depth > 0) {
             if (current().value === '}') {
@@ -290,7 +270,6 @@ function parse(tokens) {
               continue;
             }
 
-            // Inside class body: collect attributes, then modifiers
             const memberAttrs = collectAttributes();
             const memberMods = [];
             while (i < filtered.length && isModifier(current())) {
@@ -301,7 +280,6 @@ function parse(tokens) {
 
             const mc = current();
 
-            // Nested class/struct/interface/enum
             if (mc.type === TOKEN_TYPES.KEYWORD &&
                 (mc.value === 'class' || mc.value === 'struct' || mc.value === 'interface' ||
                  mc.value === 'enum' || mc.value === 'record')) {
@@ -325,22 +303,16 @@ function parse(tokens) {
               continue;
             }
 
-            // If-statement inside class body (e.g. static constructor)
             if (mc.type === TOKEN_TYPES.KEYWORD && mc.value === 'if') {
               nodes.push({ kind: 'if-statement', line: mc.line, col: mc.col });
               advance();
               continue;
             }
 
-            // Try to detect method or field:
-            // type name ( -> method
-            // type name ; or = -> field
-            // type name , -> field (multiple)
             if (isType(mc)) {
               let returnType = mc.value;
               let typeEndIdx = i + 1;
 
-              // Handle generic return types: Type<T>
               if (peek(1) && peek(1).value === '<') {
                 let j = i + 2;
                 let ad = 1;
@@ -352,7 +324,6 @@ function parse(tokens) {
                 typeEndIdx = j;
               }
 
-              // Handle array return types: type[]
               if (typeEndIdx < filtered.length && filtered[typeEndIdx].value === '[' &&
                   typeEndIdx + 1 < filtered.length && filtered[typeEndIdx + 1].value === ']') {
                 typeEndIdx += 2;
@@ -363,7 +334,7 @@ function parse(tokens) {
 
               if (memberName && memberName.type === TOKEN_TYPES.IDENTIFIER && afterName) {
                 if (afterName.value === '(') {
-                  // Method declaration
+
                   nodes.push({
                     kind: 'method',
                     name: memberName.value,
@@ -373,8 +344,8 @@ function parse(tokens) {
                     line: memberName.line,
                     col: memberName.col,
                   });
-                  i = typeEndIdx + 1; // past name, now at '('
-                  // Skip parameter list
+                  i = typeEndIdx + 1;
+
                   let parenDepth = 0;
                   while (i < filtered.length) {
                     if (current().value === '(') parenDepth++;
@@ -384,21 +355,21 @@ function parse(tokens) {
                     }
                     advance();
                   }
-                  // Skip method body or ;
+
                   if (i < filtered.length && current().value === '{') {
-                    // Parse body for local vars and if-stmts
+
                     parseBody();
                   } else if (i < filtered.length && current().value === '=>') {
-                    // Expression-bodied method
+
                     advance();
                     while (i < filtered.length && current().value !== ';') advance();
                     if (i < filtered.length) advance();
                   } else if (i < filtered.length && current().value === ';') {
-                    advance(); // abstract/interface method
+                    advance();
                   }
                   continue;
                 } else if (afterName.value === ';' || afterName.value === '=' || afterName.value === ',') {
-                  // Field declaration
+
                   nodes.push({
                     kind: 'field',
                     name: memberName.value,
@@ -410,10 +381,10 @@ function parse(tokens) {
                     col: memberName.col,
                   });
                   if (afterName.value === ';') {
-                    i = typeEndIdx + 2; // past name and ';'
+                    i = typeEndIdx + 2;
                   } else {
-                    i = typeEndIdx + 2; // past name and '=' or ','
-                    // Skip to end of statement
+                    i = typeEndIdx + 2;
+
                     while (i < filtered.length && current().value !== ';') advance();
                     if (i < filtered.length) advance();
                   }
@@ -422,7 +393,6 @@ function parse(tokens) {
               }
             }
 
-            // Constructor: ClassName(
             if (mc.type === TOKEN_TYPES.IDENTIFIER && peek(1) && peek(1).value === '(') {
               nodes.push({
                 kind: 'method',
@@ -434,8 +404,8 @@ function parse(tokens) {
                 line: mc.line,
                 col: mc.col,
               });
-              advance(); // name
-              // Skip parameter list
+              advance();
+
               let parenDepth = 0;
               while (i < filtered.length) {
                 if (current().value === '(') parenDepth++;
@@ -448,7 +418,7 @@ function parse(tokens) {
               if (i < filtered.length && current().value === '{') {
                 parseBody();
               } else if (i < filtered.length && current().value === ':') {
-                // Constructor initializer: base() or this()
+
                 while (i < filtered.length && current().value !== '{') advance();
                 if (i < filtered.length) parseBody();
               }
@@ -462,7 +432,6 @@ function parse(tokens) {
       }
     }
 
-    // Skip closing braces (namespace, etc.)
     if (curr.value === '}') {
       advance();
       continue;

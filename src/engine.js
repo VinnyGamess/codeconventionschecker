@@ -1,4 +1,4 @@
-// src/engine.js — Main orchestrator: reads, preprocesses, tokenizes, parses, checks rules.
+
 
 const { readFile } = require('./reader');
 const { removeComments } = require('./preprocessor');

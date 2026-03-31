@@ -1,4 +1,4 @@
-// src/rules/CQE003.js — Classes must use PascalCase
+
 
 module.exports = {
   id: 'CQE003',
@@ -25,9 +25,9 @@ module.exports = {
 
 function isPascalCase(name) {
   if (!name || name.length === 0) return false;
-  // Must start with uppercase letter
+
   if (name[0] < 'A' || name[0] > 'Z') return false;
-  // Must not contain underscores (except interface prefix I is fine)
+
   if (name.includes('_')) return false;
   return true;
 }

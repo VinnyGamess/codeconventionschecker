@@ -1,5 +1,4 @@
-// src/config.js — Configuration: rules on/off + magic number whitelist
-// Loads an optional .cqerc.json from the project root. Falls back to defaults.
+
 
 const fs = require('fs');
 const path = require('path');
@@ -34,7 +33,6 @@ function loadConfig(baseDir) {
     }
   }
 
-  // Merge: user overrides defaults
   const rules = { ...DEFAULT_CONFIG.rules };
   if (userConfig.rules && typeof userConfig.rules === 'object') {
     for (const [key, val] of Object.entries(userConfig.rules)) {

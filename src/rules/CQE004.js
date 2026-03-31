@@ -1,4 +1,4 @@
-// src/rules/CQE004.js — Methods must use PascalCase
+
 
 module.exports = {
   id: 'CQE004',
@@ -8,7 +8,7 @@ module.exports = {
 
     for (const node of nodes) {
       if (node.kind !== 'method') continue;
-      // Skip constructors — they match the class name which is checked by CQE003
+
       if (node.isConstructor) continue;
 
       if (!isPascalCase(node.name)) {

@@ -1,6 +1,4 @@
-// src/tokenizer.js
-// Produces a flat token stream from preprocessed C# source code.
-// Each token carries its type, value, line number, and column.
+
 
 const TOKEN_TYPES = {
   KEYWORD: 'KEYWORD',
@@ -47,7 +45,6 @@ function tokenize(source) {
   while (i < len) {
     const ch = source[i];
 
-    // Newlines
     if (ch === '\n') {
       tokens.push({ type: TOKEN_TYPES.NEWLINE, value: '\n', line, col });
       line++;
@@ -61,14 +58,12 @@ function tokenize(source) {
       continue;
     }
 
-    // Whitespace (non-newline)
     if (ch === ' ' || ch === '\t') {
       i++;
       col++;
       continue;
     }
 
-    // String literals
     if (ch === '@' && i + 1 < len && source[i + 1] === '"') {
       let str = '@"';
       i += 2;
@@ -140,11 +135,10 @@ function tokenize(source) {
       continue;
     }
 
-    // Numbers (integer and decimal, including suffixes like f, d, m, L, etc.)
     if (isDigit(ch) || (ch === '.' && i + 1 < len && isDigit(source[i + 1]))) {
       const startCol = col;
       let num = '';
-      // Hex
+
       if (ch === '0' && i + 1 < len && (source[i + 1] === 'x' || source[i + 1] === 'X')) {
         num += source[i] + source[i + 1];
         i += 2;
@@ -171,7 +165,7 @@ function tokenize(source) {
           }
         }
       }
-      // Suffix
+
       if (i < len && /[fFdDmMlLuU]/.test(source[i])) {
         num += source[i];
         i++;
@@ -181,7 +175,6 @@ function tokenize(source) {
       continue;
     }
 
-    // Identifiers and keywords
     if (isIdentStart(ch)) {
       const startCol = col;
       let word = '';
@@ -195,7 +188,6 @@ function tokenize(source) {
       continue;
     }
 
-    // Multi-char operators
     if (i + 1 < len) {
       const two = ch + source[i + 1];
       if (['==', '!=', '<=', '>=', '&&', '||', '++', '--', '+=', '-=', '*=', '/=', '=>', '??'].includes(two)) {
@@ -206,7 +198,6 @@ function tokenize(source) {
       }
     }
 
-    // Single-char operators and punctuation
     if ('+-*/%=<>!&|^~?'.includes(ch)) {
       tokens.push({ type: TOKEN_TYPES.OPERATOR, value: ch, line, col });
       i++;
@@ -221,7 +212,6 @@ function tokenize(source) {
       continue;
     }
 
-    // Skip unknown characters
     i++;
     col++;
   }

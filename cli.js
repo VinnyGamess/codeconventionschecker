@@ -1,8 +1,4 @@
 #!/usr/bin/env node
-// cli.js — Code Quality Engine CLI
-// Usage: node cli.js <path> [--verbose]
-// Scans .cs files in the given path and reports violations.
-// Exits with code 1 if any errors are found.
 
 const path = require('path');
 const { collectCsFiles } = require('./src/reader');

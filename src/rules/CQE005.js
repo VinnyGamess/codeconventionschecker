@@ -1,4 +1,4 @@
-// src/rules/CQE005.js — Local variables must use camelCase
+
 
 module.exports = {
   id: 'CQE005',
@@ -24,9 +24,9 @@ module.exports = {
 
 function isCamelCase(name) {
   if (!name || name.length === 0) return false;
-  // Must start with lowercase letter
+
   if (name[0] < 'a' || name[0] > 'z') return false;
-  // Must not contain underscores
+
   if (name.includes('_')) return false;
   return true;
 }

@@ -1,4 +1,4 @@
-// src/rules/index.js — Rule registry
+
 
 const CQE001 = require('./CQE001');
 const CQE002 = require('./CQE002');
@@ -18,20 +18,18 @@ function runRules(nodes, tokens, config) {
   const enabledRules = config && config.rules ? config.rules : {};
 
   for (const rule of allRules) {
-    // Skip disabled rules
+
     if (enabledRules[rule.id] === false) continue;
 
-    // Most rules work on AST nodes
     if (typeof rule.check === 'function') {
       errors.push(...rule.check(nodes));
     }
-    // CQE008 works on tokens directly
+
     if (typeof rule.checkTokens === 'function') {
       errors.push(...rule.checkTokens(tokens, config));
     }
   }
 
-  // Sort by line number
   errors.sort((a, b) => a.line - b.line);
   return errors;
 }

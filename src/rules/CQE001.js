@@ -1,5 +1,4 @@
-// src/rules/CQE001.js — No public fields
-// Fields should be properties or use a non-public accessor.
+
 
 module.exports = {
   id: 'CQE001',
@@ -8,7 +7,7 @@ module.exports = {
     const errors = [];
     for (const node of nodes) {
       if (node.kind === 'field' && node.modifiers && node.modifiers.includes('public')) {
-        // Allow public const and public static readonly (acceptable patterns)
+
         if (node.modifiers.includes('const')) continue;
         if (node.modifiers.includes('static') && node.modifiers.includes('readonly')) continue;
 

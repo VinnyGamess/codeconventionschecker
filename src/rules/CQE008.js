@@ -1,4 +1,4 @@
-// src/rules/CQE008.js — No magic numbers (configurable whitelist)
+
 
 const { TOKEN_TYPES } = require('../tokenizer');
 
@@ -8,7 +8,7 @@ module.exports = {
   id: 'CQE008',
   name: 'No magic numbers',
   checkTokens(tokens, config) {
-    // Build allowed set from config whitelist
+
     const whitelist = config && Array.isArray(config.magicNumberWhitelist)
       ? new Set(config.magicNumberWhitelist.map(n => String(n)))
       : DEFAULT_ALLOWED;
@@ -20,27 +20,21 @@ module.exports = {
       const t = filtered[i];
       if (t.type !== TOKEN_TYPES.NUMBER) continue;
 
-      // Strip suffixes for comparison
       const raw = t.value.replace(/[fFdDmMlLuU]$/g, '');
 
-      // Allow whitelisted values
       if (whitelist.has(raw)) continue;
 
-      // Allow -1: check if preceded by unary minus
-      if (raw === '1' || raw === '1.0') continue; // already allowed above
+      if (raw === '1' || raw === '1.0') continue;
       const prev = filtered[i - 1];
       if (prev && prev.value === '-' && raw === '1') continue;
 
-      // Check for negative literal in whitelist
       if (prev && prev.value === '-') {
         const rawWithMinus = '-' + raw;
         if (whitelist.has(rawWithMinus)) continue;
       }
 
-      // Skip numbers in const declarations (they're named constants)
       if (isInConstDeclaration(filtered, i)) continue;
 
-      // Skip enum values
       if (isInEnum(filtered, i)) continue;
 
       errors.push({
@@ -55,7 +49,7 @@ module.exports = {
 };
 
 function isInConstDeclaration(tokens, idx) {
-  // Look backwards for 'const' keyword before hitting a semicolon or opening brace
+
   for (let j = idx - 1; j >= 0 && j >= idx - 10; j--) {
     if (tokens[j].value === ';' || tokens[j].value === '{' || tokens[j].value === '}') break;
     if (tokens[j].value === 'const') return true;
@@ -64,13 +58,13 @@ function isInConstDeclaration(tokens, idx) {
 }
 
 function isInEnum(tokens, idx) {
-  // Look backwards for 'enum' keyword or pattern
+
   let braceDepth = 0;
   for (let j = idx - 1; j >= 0; j--) {
     if (tokens[j].value === '{') {
       braceDepth++;
       if (braceDepth > 0) {
-        // Check if just before this brace there's an enum keyword
+
         for (let k = j - 1; k >= 0 && k >= j - 5; k--) {
           if (tokens[k].value === 'enum') return true;
           if (tokens[k].value === 'class' || tokens[k].value === 'struct') return false;
