@@ -1,0 +1,14 @@
+{
+  "name": "code-quality-engine",
+  "version": "1.0.0",
+  "description": "Lightweight C# Code Quality Engine — plain Node.js, no dependencies",
+  "main": "cli.js",
+  "bin": {
+    "cqe": "./cli.js"
+  },
+  "scripts": {
+    "lint": "node cli.js ./test"
+  },
+  "keywords": ["csharp", "lint", "code-quality"],
+  "license": "MIT"
+}
