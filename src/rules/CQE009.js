@@ -10,7 +10,7 @@ module.exports = {
       if (!node.modifiers || !node.modifiers.includes('public')) continue;
 
       if (node.modifiers.includes('const')) continue;
-      if (node.modifiers.includes('static') && node.modifiers.includes('readonly')) continue;
+      if (node.modifiers.includes('static')) continue;
 
       if (node.attributes && node.attributes.some(a => a === 'SerializeField')) continue;
 

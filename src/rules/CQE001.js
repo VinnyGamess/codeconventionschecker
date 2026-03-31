@@ -11,11 +11,14 @@ module.exports = {
         if (node.modifiers.includes('const')) continue;
         if (node.modifiers.includes('static') && node.modifiers.includes('readonly')) continue;
 
+        const isStatic = node.modifiers.includes('static');
         errors.push({
           rule: this.id,
           line: node.line,
           message: `Public field '${node.name}' detected.`,
-          suggestion: `Use a property or mark the field as private/internal.`,
+          suggestion: isStatic
+            ? `Use a static property instead: public static ${node.typeName || 'T'} ${node.name} { get; private set; }`
+            : 'Use a property or mark the field as private/internal.',
         });
       }
     }

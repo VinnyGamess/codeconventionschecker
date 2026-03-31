@@ -27,6 +27,19 @@ const BAD_NAMES = [
 
 const BAD_NAME_SET = new Set(BAD_NAMES);
 
+const UNITY_LIFECYCLE_METHODS = new Set([
+  'awake', 'start', 'update', 'fixedupdate', 'lateupdate',
+  'ondestroy', 'onenable', 'ondisable', 'onvalidate',
+  'ontriggerenter', 'ontriggerexit', 'ontriggerstay',
+  'ontriggerenter2d', 'ontriggerexit2d', 'ontriggerstay2d',
+  'oncollisionenter', 'oncollisionexit', 'oncollisionstay',
+  'oncollisionenter2d', 'oncollisionexit2d', 'oncollisionstay2d',
+  'onmousedown', 'onmouseup', 'onmouseenter', 'onmouseexit',
+  'ongui', 'onapplicationpause', 'onapplicationquit',
+  'onapplicationfocus', 'onbecamevisible', 'onbecameinvisible',
+  'ontransformparentchanged', 'reset',
+]);
+
 const ENGLISH_COMMON = new Set([
   'get', 'set', 'add', 'remove', 'delete', 'update', 'create', 'find',
   'search', 'sort', 'filter', 'map', 'reduce', 'count', 'size', 'length',
@@ -50,6 +63,24 @@ const ENGLISH_COMMON = new Set([
   'color', 'colour', 'text', 'label', 'title', 'description',
   'is', 'has', 'can', 'should', 'will', 'was',
   'on', 'off', 'true', 'false', 'null', 'none', 'empty', 'default',
+  'awake', 'update', 'fixed', 'late', 'follow', 'check', 'try', 'collect',
+  'enter', 'exit', 'stay', 'trigger', 'collision', 'collider', 'rigidbody',
+  'move', 'run', 'walk', 'fall', 'land', 'kill', 'die', 'hit',
+  'spawn', 'spawned', 'spawning', 'despawn',
+  'jump', 'jumped', 'jumping',
+  'play', 'played', 'playing', 'pause', 'paused', 'resume', 'resumed',
+  'fade', 'faded', 'bounce', 'idle', 'patrol', 'chase', 'flee',
+  'quit', 'retry', 'reload', 'restart',
+  'music', 'sound', 'audio', 'volume', 'clip', 'mute', 'unmute', 'sfx', 'fx',
+  'coin', 'coins', 'spike', 'spikes', 'score', 'level', 'levels', 'scene',
+  'platform', 'platforms', 'stage', 'effect', 'effects', 'chance',
+  'distance', 'offset', 'boundary', 'initial', 'time', 'elapsed',
+  'after', 'before', 'delay', 'during',
+  'button', 'buttons', 'panel', 'overlay', 'canvas', 'slider', 'icon',
+  'parent', 'object', 'objects', 'prefab', 'tag', 'layer', 'mask',
+  'ground', 'grounded', 'wall', 'floor', 'ceiling',
+  'started', 'enabled', 'disabled', 'grounded',
+  'ui', 'rb', 'npc', 'hp', 'mp', 'xp',
 ]);
 
 const ENGLISH_BIGRAMS = {
@@ -68,7 +99,7 @@ const ENGLISH_BIGRAMS = {
 const NON_ENGLISH_BIGRAMS = new Set([
   'ij', 'oe', 'ui', 'aa', 'uu', 'ee', 'oo', 'eu',
   'heid', 'lijk', 'baar', 'tje',
-  'sch', 'ck', 'pf', 'tz', 'sz',
+  'sch', 'pf', 'tz', 'sz',
   'ää', 'öö', 'üü',
 ]);
 
@@ -304,9 +335,12 @@ function analyseIdentifier(name, kind) {
   }
 
   if (closestDist > 0 && closestDist <= 2 && closestBad) {
-    const penalty = closestDist === 1 ? 0.35 : 0.15;
-    score += penalty;
-    reasons.push(`very similar to bad name '${closestBad}' (distance: ${closestDist})`);
+    const normalizedDist = closestDist / Math.max(lower.length, closestBad.length);
+    if (normalizedDist < 0.4) {
+      const penalty = closestDist === 1 ? 0.35 : 0.15;
+      score += penalty;
+      reasons.push(`very similar to bad name '${closestBad}' (distance: ${closestDist})`);
+    }
   }
 
   const learned = getLearnedBadNames();
@@ -361,13 +395,21 @@ function analyseIdentifier(name, kind) {
   }
 
   if (clean.length >= 4) {
-    const engScore = englishBigramScore(clean);
-    if (engScore < 0.15) {
-      score += 0.3;
-      reasons.push(`low English-likeness (bigram score: ${engScore.toFixed(2)})`);
-    } else if (engScore < 0.25) {
-      score += 0.15;
-      reasons.push(`below-average English-likeness (bigram score: ${engScore.toFixed(2)})`);
+    const hasKnownWord = words.some(w => ENGLISH_COMMON.has(w));
+    if (!hasKnownWord) {
+      const perWordScores = words
+        .filter(w => w.length >= 2)
+        .map(w => englishBigramScore(w));
+      const engScore = perWordScores.length > 0
+        ? Math.max(...perWordScores)
+        : englishBigramScore(clean);
+      if (engScore < 0.15) {
+        score += 0.3;
+        reasons.push(`low English-likeness (bigram score: ${engScore.toFixed(2)})`);
+      } else if (engScore < 0.25) {
+        score += 0.15;
+        reasons.push(`below-average English-likeness (bigram score: ${engScore.toFixed(2)})`);
+      }
     }
   }
 
@@ -421,6 +463,7 @@ function analyseNodes(nodes, threshold) {
     if (!kinds.includes(node.kind)) continue;
 
     if (node.isConstructor) continue;
+    if (node.kind === 'method' && UNITY_LIFECYCLE_METHODS.has(node.name.toLowerCase())) continue;
 
     const report = analyseIdentifier(node.name, node.kind);
     if (report.confidence >= threshold) {
