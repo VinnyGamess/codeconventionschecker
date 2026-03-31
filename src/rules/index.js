@@ -9,8 +9,9 @@ const CQE006 = require('./CQE006');
 const CQE008 = require('./CQE008');
 const CQE009 = require('./CQE009');
 const CQE010 = require('./CQE010');
+const CQE011 = require('./CQE011');
 
-const allRules = [CQE001, CQE002, CQE003, CQE004, CQE005, CQE006, CQE008, CQE009, CQE010];
+const allRules = [CQE001, CQE002, CQE003, CQE004, CQE005, CQE006, CQE008, CQE009, CQE010, CQE011];
 
 function runRules(nodes, tokens, config) {
   const errors = [];

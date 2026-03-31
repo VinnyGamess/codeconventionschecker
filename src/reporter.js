@@ -69,6 +69,14 @@ function reportError(err) {
 
   let output = `\n${location}\n`;
   output += `  ${sev} ${rule}  ${message}\n`;
+
+  // Show confidence score when present (heuristic rules)
+  if (typeof err.confidence === 'number') {
+    const conf = err.confidence;
+    const bar = renderConfidenceBar(conf);
+    output += `  ${ANSI.grey}Confidence: ${ANSI.reset}${bar} ${ANSI.bold}${conf.toFixed(2)}${ANSI.reset}\n`;
+  }
+
   if (suggestion) {
     output += `  ${suggestion}\n`;
   }
@@ -80,6 +88,20 @@ function reportError(err) {
   }
 
   return output;
+}
+
+function renderConfidenceBar(confidence) {
+  const width = 20;
+  const filled = Math.round(confidence * width);
+  const empty = width - filled;
+
+  // Colour based on severity: green < 0.4, yellow < 0.7, red >= 0.7
+  let colour;
+  if (confidence < 0.4) colour = ANSI.green;
+  else if (confidence < 0.7) colour = ANSI.yellow;
+  else colour = ANSI.red;
+
+  return `${colour}${'█'.repeat(filled)}${ANSI.grey}${'░'.repeat(empty)}${ANSI.reset}`;
 }
 
 function reportSummary(totalFiles, totalErrors, totalWarnings) {

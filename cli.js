@@ -32,6 +32,7 @@ if (targets.length === 0) {
   console.log('  CQE008  No magic numbers');
   console.log('  CQE009  Use [SerializeField] private');
   console.log('  CQE010  Awake vs Start check');
+  console.log('  CQE011  Heuristic naming quality');
   console.log('');
   console.log('Config: place .cqerc.json in project root to toggle rules / set whitelist.');
   process.exit(0);

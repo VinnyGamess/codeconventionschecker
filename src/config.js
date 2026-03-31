@@ -15,7 +15,9 @@ const DEFAULT_CONFIG = {
     CQE008: true,
     CQE009: true,
     CQE010: true,
+    CQE011: true,
   },
+  heuristicThreshold: 0.3,
   magicNumberWhitelist: [0, 1, -1],
 };
 
