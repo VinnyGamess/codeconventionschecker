@@ -18,9 +18,6 @@ const BAD_NAMES = [
   'knop', 'scherm', 'venster', 'bericht', 'lijst', 'teller',
   'speler', 'vijand', 'snelheid', 'hoogte', 'breedte', 'lengte',
 
-  'eingabe', 'ausgabe', 'fehler', 'nachricht', 'spieler', 'zahl',
-  'wert', 'groesse', 'breite', 'hoehe', 'laenge', 'taste',
-
   'a', 'b', 'c', 'd', 'f', 'g', 'h', 'l', 'm', 'n', 'o', 'p', 'q',
   'r', 's', 't', 'u', 'v', 'w',
 ];

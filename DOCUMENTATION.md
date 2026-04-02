@@ -14,14 +14,12 @@ Als klein onderzoek hebben we gekeken naar hoe dit normaal wordt aangepakt in pr
 
 Voorbeelden hiervan zijn:
 
-- JavaScript → ESLint  
-- C# → StyleCop / Visual Studio analyzers  
+- JavaScript - ESLint  
+- C# - StyleCop / Visual Studio analyzers / Roslyn 
 - C / C++ → clang-format / cppcheck  
 
 Deze tools zorgen ervoor dat code automatisch wordt gecontroleerd op afspraken zoals naamgeving, structuur en formatting.
 
-![Voorbeeld lint tools](images/roslyn.png)
-![Voorbeeld lint tools](images/stylecop.png)
 ![Voorbeeld lint tools](images/eslint.png)
 
 Wat hier belangrijk aan is, is dat deze tools niet alleen fouten aangeven, maar ook zorgen voor consistentie tussen developers. Iedereen krijgt dezelfde feedback, ongeacht wie de code schrijft.
@@ -30,7 +28,7 @@ Uit onze eigen ervaringen en dit kleine onderzoek konden we een duidelijke concl
 
 ---
 
-## 2. ADVIES (ADVIESRAPPORT)
+## 2. ADVIES 
 
 Op basis van deze analyse hebben we eerst gekeken naar wat we als groep belangrijk vinden in code. Omdat iedereen al ervaring had met Unity en C#, konden we vrij snel een lijst maken van conventies die we logisch vonden, zoals naamgeving, structuur en leesbaarheid.
 

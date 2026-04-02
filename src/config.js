@@ -17,7 +17,7 @@ const DEFAULT_CONFIG = {
     CQE011: true,
   },
   heuristicThreshold: 0.3,
-  magicNumberWhitelist: [0, 1, -1],
+  magicNumberWhitelist: [0, 1, 2, -1],
 };
 
 function loadConfig(baseDir) {
