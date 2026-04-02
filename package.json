@@ -1,6 +1,6 @@
 {
   "name": "code-quality-engine",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Lightweight C# Code Quality Engine — plain Node.js, no dependencies",
   "main": "cli.js",
   "bin": {
