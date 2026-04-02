@@ -1,0 +1,10 @@
+cqe-lint:
+  image: node:20
+  tags:
+    - hva
+  script:
+    - git clone https://github.com/VinnyGamess/codeconventionschecker /tmp/linter
+    - if [ -d "AgileAmsterdam/Assets/Scripts" ]; then node /tmp/linter/cli.js AgileAmsterdam/Assets/Scripts --verbose; else echo "Scripts folder not found, skipping lint."; fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
