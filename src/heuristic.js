@@ -81,6 +81,19 @@ const ENGLISH_COMMON = new Set([
   'ground', 'grounded', 'wall', 'floor', 'ceiling',
   'started', 'enabled', 'disabled', 'grounded',
   'ui', 'rb', 'npc', 'hp', 'mp', 'xp',
+  'draw', 'drawn', 'drawing', 'render', 'rendered', 'rendering',
+  'full', 'half', 'circle', 'arc', 'ring', 'sphere', 'cube', 'line',
+  'angle', 'radius', 'diameter', 'thickness', 'thin', 'thick',
+  'inner', 'outer', 'center', 'centre', 'middle',
+  'mesh', 'vertex', 'vertices', 'triangle', 'quad', 'polygon',
+  'segment', 'segments', 'step', 'steps', 'rect', 'rectangle',
+  'clockwise', 'counter', 'inverse', 'reverse', 'forward', 'backward',
+  'alpha', 'beta', 'gamma', 'delta', 'progress', 'ratio', 'fraction',
+  'clamp', 'lerp', 'smooth', 'ease', 'curve', 'gradient',
+  'image', 'sprite', 'texture', 'material', 'shader', 'pixel',
+  'mouse', 'touch', 'cursor', 'pointer', 'drag', 'drop', 'click',
+  'life', 'lives', 'health', 'damage', 'shield', 'armor', 'power',
+  'wave', 'round', 'timer', 'duration', 'interval', 'cooldown',
 ]);
 
 const ENGLISH_BIGRAMS = {

@@ -2,7 +2,7 @@
 
 const { TOKEN_TYPES } = require('../tokenizer');
 
-const DEFAULT_ALLOWED = new Set(['0', '1']);
+const DEFAULT_ALLOWED = new Set(['0', '1', '2']);
 
 module.exports = {
   id: 'CQE008',
@@ -70,12 +70,15 @@ function isInVariableDeclaration(tokens, idx) {
   // or an attribute ([SerializeField]) before the type.
   // Pattern: [modifiers/attributes] <type> <identifier> = <number>
 
-  // The previous token must be '='
-  const prev = tokens[idx - 1];
-  if (!prev || prev.value !== '=') return false;
+  // The previous token must be '=' (or '-' preceded by '=' for negative numbers)
+  let lookback = idx - 1;
+  const prev = tokens[lookback];
+  if (!prev) return false;
+  if (prev.value === '-') lookback--;
+  if (!tokens[lookback] || tokens[lookback].value !== '=') return false;
 
   // The token before '=' must be an identifier (the variable name)
-  const varName = tokens[idx - 2];
+  const varName = tokens[lookback - 1];
   if (!varName || varName.type !== TOKEN_TYPES.IDENTIFIER) return false;
 
   // Ensure we are not inside parentheses (e.g. a function call argument)
@@ -91,13 +94,13 @@ function isInVariableDeclaration(tokens, idx) {
 
   // Find the start of the current statement
   let stmtStart = 0;
-  for (let j = idx - 3; j >= 0; j--) {
+  for (let j = lookback - 2; j >= 0; j--) {
     const v = tokens[j].value;
     if (v === ';' || v === '{' || v === '}') { stmtStart = j + 1; break; }
   }
 
   // Collect the statement tokens before the identifier (i.e., the modifiers + type)
-  const stmtTokens = tokens.slice(stmtStart, idx - 2); // exclude varName and '='
+  const stmtTokens = tokens.slice(stmtStart, lookback - 1); // exclude varName and '='
 
   // Must have at least one member modifier OR an attribute closing ']'
   const hasModifier = stmtTokens.some(t => MEMBER_MODIFIERS.has(t.value));
