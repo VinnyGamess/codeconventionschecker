@@ -4,6 +4,7 @@ cqe-lint:
     - hva
   script:
     - git clone https://github.com/VinnyGamess/codeconventionschecker /tmp/linter
+    - echo "CQE version $(node -e \"console.log(require('/tmp/linter/package.json').version)\")"
     - if [ -d "AgileAmsterdam/Assets/Scripts" ]; then node /tmp/linter/cli.js AgileAmsterdam/Assets/Scripts --verbose; else echo "Scripts folder not found, skipping lint."; fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
