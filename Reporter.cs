@@ -10,15 +10,20 @@ public static class Reporter
 
     public static void Print(string filepath, Violation violation, bool verbose)
     {
-        var color = violation.Severity == "error" ? Red : Yellow;
+        string color;
+        if (violation.Severity == "error")
+            color = Red;
+        else
+            color = Yellow;
+
         Console.WriteLine(
-            $"{Cyan}{filepath}:{violation.Line}{Reset}  " +
-            $"{color}{Bold}{violation.Severity}{Reset}  " +
-            $"{Magenta}[{violation.Rule}]{Reset}  " +
-            $"{violation.Message}"
+            Cyan + filepath + ":" + violation.Line + Reset + "  " +
+            color + Bold + violation.Severity + Reset + "  " +
+            Magenta + "[" + violation.Rule + "]" + Reset + "  " +
+            violation.Message
         );
 
-        if (verbose && !string.IsNullOrEmpty(violation.Suggestion))
-            Console.WriteLine($"  {Green}-> {violation.Suggestion}{Reset}");
+        if (verbose && violation.Suggestion != null && violation.Suggestion != "")
+            Console.WriteLine("  " + Green + "-> " + violation.Suggestion + Reset);
     }
 }

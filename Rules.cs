@@ -278,7 +278,11 @@ public static class Rules
         foreach (Declaration d in declarations)
         {
             if (d.Kind != "method") continue;
-            string className = d.Parent != null ? d.Parent : "__global__";
+            string className;
+            if (d.Parent != null)
+                className = d.Parent;
+            else
+                className = "__global__";
             if (!byClass.ContainsKey(className))
                 byClass[className] = new List<Declaration>();
             byClass[className].Add(d);

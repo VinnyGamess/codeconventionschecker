@@ -12,7 +12,7 @@ cqe-lint:
       - .ollama/models
   script:
     - export OLLAMA_MODELS="$CI_PROJECT_DIR/.ollama/models"
-    - apt-get update -qq && apt-get install -y -qq curl
+    - apt-get update -qq && apt-get install -y -qq curl zstd
     - git clone "$LINTER_REPO" /tmp/linter
     - curl -fsSL https://ollama.com/install.sh | sh
     - ollama serve &
