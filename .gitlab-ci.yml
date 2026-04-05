@@ -1,11 +1,30 @@
 cqe-lint:
-  image: node:20
+  image: mcr.microsoft.com/dotnet/sdk:10.0
   tags:
     - hva
+  variables:
+    LINTER_REPO: "https://github.com/VinnyGamess/codeconventionschecker"
+    SCRIPTS_PATH: "AgileAmsterdam/Assets/Scripts"
+    OLLAMA_MODEL: "tinyllama"
+  cache:
+    key: ollama-tinyllama
+    paths:
+      - .ollama/models
   script:
-    - git clone https://github.com/VinnyGamess/codeconventionschecker /tmp/linter
-    - echo "CQE version $(node -e \"console.log(require('/tmp/linter/package.json').version)\")"
-    - if [ -d "AgileAmsterdam/Assets/Scripts" ]; then node /tmp/linter/cli.js AgileAmsterdam/Assets/Scripts --verbose; else echo "Scripts folder not found, skipping lint."; fi
+    - export OLLAMA_MODELS="$CI_PROJECT_DIR/.ollama/models"
+    - apt-get update -qq && apt-get install -y -qq curl
+    - git clone "$LINTER_REPO" /tmp/linter
+    - curl -fsSL https://ollama.com/install.sh | sh
+    - ollama serve &
+    - sleep 5
+    - ollama pull "$OLLAMA_MODEL"
+    - |
+      if [ -d "$SCRIPTS_PATH" ]; then
+        dotnet run --project /tmp/linter --configuration Release -- "$SCRIPTS_PATH" --verbose
+      else
+        echo "Scripts folder '$SCRIPTS_PATH' not found, skipping lint."
+      fi
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+  allow_failure: false

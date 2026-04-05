@@ -1,123 +1,170 @@
+#nullable disable
 using System.Text.RegularExpressions;
 
-public record Declaration(string Kind, string Name, List<string> Modifiers, List<string> Attributes, int Line, string? Parent = null);
+public class Declaration
+{
+    public string Kind;
+    public string Name;
+    public List<string> Modifiers;
+    public List<string> Attributes;
+    public int Line;
+    public string Parent;
+
+    public Declaration(string kind, string name, List<string> modifiers, List<string> attributes, int line, string parent = null)
+    {
+        Kind = kind;
+        Name = name;
+        Modifiers = modifiers;
+        Attributes = attributes;
+        Line = line;
+        Parent = parent;
+    }
+}
 
 public static class Parser
 {
-    static readonly HashSet<string> ControlFlow = new()
+    static readonly string[] ControlFlow = new string[]
     {
         "if", "else", "for", "foreach", "while", "do", "switch",
         "case", "return", "break", "continue", "try", "catch",
         "finally", "throw", "lock", "using", "yield", "await",
     };
 
-    static readonly HashSet<string> Modifiers = new()
+    static readonly string[] ReservedWords = new string[]
     {
+        "if", "else", "for", "foreach", "while", "do", "switch",
+        "case", "return", "break", "continue", "try", "catch",
+        "finally", "throw", "lock", "using", "yield", "await",
         "public", "private", "protected", "internal", "static", "readonly",
         "abstract", "virtual", "override", "sealed", "partial", "async",
         "const", "extern", "new",
+        "class", "struct", "interface", "enum", "record"
     };
 
-    static readonly HashSet<string> AccessModifiers = new() { "public", "private", "protected", "internal" };
-
-    static readonly HashSet<string> ReservedWords = new(
-        ControlFlow.Concat(Modifiers).Concat(new[] { "class", "struct", "interface", "enum", "record" })
-    );
-
-    static readonly Regex CommentRe = new(
-        """@"[^"]*(?:""[^"]*)*"|"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|//[^\n]*|/\*.*?\*/""",
+    static readonly Regex CommentRe = new Regex(
+        @"@""[^""]*(?:""""[^""]*)*""|""(?:[^""\\]|\\.)*""|'(?:[^'\\]|\\.)*'|//[^\n]*|/\*.*?\*/",
         RegexOptions.Singleline
     );
 
-    static readonly Regex TypeRe = new(
-        """^((?:(?:public|private|protected|internal|static|abstract|sealed|partial)\s+)*)(class|struct|interface|enum|record)\s+(\w+)"""
+    static readonly Regex TypeRe = new Regex(
+        @"^((?:(?:public|private|protected|internal|static|abstract|sealed|partial)\s+)*)(class|struct|interface|enum|record)\s+(\w+)"
     );
 
-    static readonly Regex MethodRe = new(
-        """^((?:(?:public|private|protected|internal|static|abstract|virtual|override|async|sealed|partial|extern|new)\s+)*)[\w<>\[\],?\s]+?\s+(\w+)\s*\("""
+    static readonly Regex MethodRe = new Regex(
+        @"^((?:(?:public|private|protected|internal|static|abstract|virtual|override|async|sealed|partial|extern|new)\s+)*)[\w<>\[\],?\s]+?\s+(\w+)\s*\("
     );
 
-    static readonly Regex FieldRe = new(
-        """^((?:(?:public|private|protected|internal|static|readonly|const|abstract|virtual|override|extern|new)\s+)*)(?:[\w<>\[\],?]+\s+)+(\w+)\s*[;=]"""
+    static readonly Regex FieldRe = new Regex(
+        @"^((?:(?:public|private|protected|internal|static|readonly|const|abstract|virtual|override|extern|new)\s+)*)(?:[\w<>\[\],?]+\s+)+(\w+)\s*[;=]"
     );
 
-    static readonly Regex VarRe = new("""^(?:var|[\w<>\[\],?]+)\s+(\w+)\s*[;=]""");
+    static readonly Regex VarRe = new Regex(@"^(?:var|[\w<>\[\],?]+)\s+(\w+)\s*[;=]");
 
-    public static string StripComments(string source) =>
-        CommentRe.Replace(source, m =>
-            m.Value.StartsWith("/")
-                ? new string('\n', m.Value.Count(c => c == '\n'))
-                : m.Value
-        );
+    static bool Contains(string[] array, string value)
+    {
+        foreach (string item in array)
+            if (item == value) return true;
+        return false;
+    }
+
+    static int CountChar(string text, char ch)
+    {
+        int count = 0;
+        for (int i = 0; i < text.Length; i++)
+            if (text[i] == ch) count++;
+        return count;
+    }
+
+    static string ReplaceComment(Match m)
+    {
+        if (m.Value.StartsWith("/"))
+        {
+            int newlineCount = CountChar(m.Value, '\n');
+            return new string('\n', newlineCount);
+        }
+        return m.Value;
+    }
+
+    public static string StripComments(string source)
+    {
+        return CommentRe.Replace(source, ReplaceComment);
+    }
 
     static string FirstWord(string line)
     {
-        var m = Regex.Match(line, @"\w+");
-        return m.Success ? m.Value : "";
+        Match m = Regex.Match(line, @"\w+");
+        if (m.Success) return m.Value;
+        return "";
     }
 
-    static Declaration? MatchType(string line, List<string> attributes, int lineNumber)
+    static List<string> SplitModifiers(string modifierString)
     {
-        var m = TypeRe.Match(line);
+        List<string> result = new List<string>();
+        string[] parts = modifierString.Split(' ');
+        foreach (string part in parts)
+            if (part != "") result.Add(part);
+        return result;
+    }
+
+    static Declaration MatchType(string line, List<string> attributes, int lineNumber)
+    {
+        Match m = TypeRe.Match(line);
         if (!m.Success) return null;
         return new Declaration(m.Groups[2].Value, m.Groups[3].Value,
-            m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList(),
-            attributes, lineNumber);
+            SplitModifiers(m.Groups[1].Value), attributes, lineNumber);
     }
 
-    static Declaration? MatchMethod(string line, List<string> attributes, int lineNumber)
+    static Declaration MatchMethod(string line, List<string> attributes, int lineNumber)
     {
-        if (ControlFlow.Contains(FirstWord(line))) return null;
-        var m = MethodRe.Match(line);
-        if (!m.Success || ReservedWords.Contains(m.Groups[2].Value)) return null;
+        if (Contains(ControlFlow, FirstWord(line))) return null;
+        Match m = MethodRe.Match(line);
+        if (!m.Success || Contains(ReservedWords, m.Groups[2].Value)) return null;
         return new Declaration("method", m.Groups[2].Value,
-            m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList(),
-            attributes, lineNumber);
+            SplitModifiers(m.Groups[1].Value), attributes, lineNumber);
     }
 
-    static Declaration? MatchField(string line, List<string> attributes, int lineNumber)
+    static Declaration MatchField(string line, List<string> attributes, int lineNumber)
     {
-        if (ControlFlow.Contains(FirstWord(line))) return null;
-        var m = FieldRe.Match(line);
-        if (!m.Success || ReservedWords.Contains(m.Groups[2].Value)) return null;
+        if (Contains(ControlFlow, FirstWord(line))) return null;
+        Match m = FieldRe.Match(line);
+        if (!m.Success || Contains(ReservedWords, m.Groups[2].Value)) return null;
         return new Declaration("field", m.Groups[2].Value,
-            m.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries).ToList(),
-            attributes, lineNumber);
+            SplitModifiers(m.Groups[1].Value), attributes, lineNumber);
     }
 
-    static Declaration? MatchVariable(string line, int lineNumber)
+    static Declaration MatchVariable(string line, int lineNumber)
     {
-        if (ControlFlow.Contains(FirstWord(line))) return null;
-        var m = VarRe.Match(line);
-        if (!m.Success || ReservedWords.Contains(m.Groups[1].Value)) return null;
+        if (Contains(ControlFlow, FirstWord(line))) return null;
+        Match m = VarRe.Match(line);
+        if (!m.Success || Contains(ReservedWords, m.Groups[1].Value)) return null;
         return new Declaration("variable", m.Groups[1].Value, new List<string>(), new List<string>(), lineNumber);
     }
 
     public static List<Declaration> Extract(string[] lines)
     {
-        var declarations       = new List<Declaration>();
-        var scopeStack         = new Stack<string>();
-        var classStack         = new Stack<string>();
-        var pendingAttributes  = new List<string>();
-        string? scopeForBrace  = null;
-        string? classForBrace  = null;
+        List<Declaration> declarations = new List<Declaration>();
+        Stack<string> scopeStack = new Stack<string>();
+        Stack<string> classStack = new Stack<string>();
+        List<string> pendingAttributes = new List<string>();
+        string scopeForBrace = null;
+        string classForBrace = null;
 
         for (int i = 0; i < lines.Length; i++)
         {
-            var line       = lines[i].Trim();
-            var lineNumber = i + 1;
+            string line = lines[i].Trim();
+            int lineNumber = i + 1;
 
             if (string.IsNullOrEmpty(line)) continue;
 
             if (line.StartsWith("["))
             {
-                var m = Regex.Match(line, @"\[(\w[\w.]*)");
+                Match m = Regex.Match(line, @"\[(\w[\w.]*)");
                 if (m.Success) pendingAttributes.Add(m.Groups[1].Value);
                 continue;
             }
 
-            var currentScope   = scopeStack.Count > 0 ? scopeStack.Peek() : "global";
-            Declaration? found = null;
+            string currentScope = scopeStack.Count > 0 ? scopeStack.Peek() : "global";
+            Declaration found = null;
 
             if (Regex.IsMatch(line, @"^namespace\b"))
             {
@@ -126,19 +173,31 @@ public static class Parser
             else if (currentScope == "global" || currentScope == "namespace")
             {
                 found = MatchType(line, new List<string>(pendingAttributes), lineNumber);
-                if (found != null) { scopeForBrace = "type"; classForBrace = found.Name; }
+                if (found != null)
+                {
+                    scopeForBrace = "type";
+                    classForBrace = found.Name;
+                }
             }
             else if (currentScope == "type")
             {
-                found = MatchMethod(line, new List<string>(pendingAttributes), lineNumber)
-                     ?? MatchField(line, new List<string>(pendingAttributes), lineNumber);
+                found = MatchMethod(line, new List<string>(pendingAttributes), lineNumber);
+                if (found == null)
+                    found = MatchField(line, new List<string>(pendingAttributes), lineNumber);
+
                 if (found != null)
                 {
-                    found = found with { Parent = classStack.Count > 0 ? classStack.Peek() : null };
+                    string parentClass = classStack.Count > 0 ? classStack.Peek() : null;
+                    found = new Declaration(found.Kind, found.Name, found.Modifiers, found.Attributes, found.Line, parentClass);
+
                     if (found.Kind == "method" && found.Name == found.Parent)
+                    {
                         found = null;
-                    else if (found?.Kind == "method")
+                    }
+                    else if (found != null && found.Kind == "method")
+                    {
                         scopeForBrace = "method";
+                    }
                 }
             }
             else if (currentScope == "method" || currentScope == "block")
@@ -149,9 +208,10 @@ public static class Parser
             if (found != null) declarations.Add(found);
             pendingAttributes.Clear();
 
-            for (int b = 0; b < line.Count(c => c == '{'); b++)
+            int openBraces = CountChar(line, '{');
+            for (int b = 0; b < openBraces; b++)
             {
-                var scope = b == 0 && scopeForBrace != null ? scopeForBrace : "block";
+                string scope = (b == 0 && scopeForBrace != null) ? scopeForBrace : "block";
                 scopeStack.Push(scope);
                 if (scope == "type" && classForBrace != null)
                 {
@@ -161,11 +221,15 @@ public static class Parser
                 scopeForBrace = null;
             }
 
-            for (int b = 0; b < line.Count(c => c == '}'); b++)
+            int closeBraces = CountChar(line, '}');
+            for (int b = 0; b < closeBraces; b++)
             {
                 if (scopeStack.Count > 0)
-                    if (scopeStack.Pop() == "type" && classStack.Count > 0)
+                {
+                    string popped = scopeStack.Pop();
+                    if (popped == "type" && classStack.Count > 0)
                         classStack.Pop();
+                }
             }
         }
 
