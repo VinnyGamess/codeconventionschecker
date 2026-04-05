@@ -10,19 +10,48 @@ inputs:
     description: 'Show per-file scan info'
     required: false
     default: 'false'
+  ollama-model:
+    description: 'Ollama model to use for naming checks (e.g. llama3.2). Leave empty to skip CQE011.'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
   steps:
-    - uses: actions/setup-node@v4
+    - uses: actions/setup-dotnet@v4
       with:
-        node-version: '20'
+        dotnet-version: '8.0.x'
+
+    - name: Build
+      shell: bash
+      run: dotnet build "${{ github.action_path }}" --configuration Release
+
+    - name: Cache Ollama model
+      if: inputs.ollama-model != ''
+      uses: actions/cache@v4
+      with:
+        path: ~/.ollama/models
+        key: ollama-${{ inputs.ollama-model }}
+
+    - name: Install Ollama and pull model
+      if: inputs.ollama-model != ''
+      shell: bash
+      run: |
+        curl -fsSL https://ollama.com/install.sh | sh
+        ollama serve &
+        sleep 3
+        ollama pull ${{ inputs.ollama-model }}
 
     - name: Run CQE linter
       shell: bash
+      env:
+        OLLAMA_MODEL: ${{ inputs.ollama-model }}
       run: |
-        FLAGS=""
-        if [ "${{ inputs.verbose }}" = "true" ]; then
-          FLAGS="--verbose"
+        FLAGS="--no-llm"
+        if [ "${{ inputs.ollama-model }}" != "" ]; then
+          FLAGS=""
         fi
-        node "${{ github.action_path }}/cli.js" "${{ inputs.path }}" $FLAGS
+        if [ "${{ inputs.verbose }}" = "true" ]; then
+          FLAGS="$FLAGS --verbose"
+        fi
+        dotnet run --project "${{ github.action_path }}" --configuration Release -- "${{ inputs.path }}" $FLAGS
