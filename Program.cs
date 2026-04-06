@@ -1,17 +1,12 @@
 #nullable disable
 string path = null;
-bool verbose = false;
-bool useLlm = true;
+bool verbose = false, useLlm = true;
 
 for (int i = 0; i < args.Length; i++)
 {
-    string arg = args[i];
-    if (arg == "--verbose")
-        verbose = true;
-    else if (arg == "--no-llm")
-        useLlm = false;
-    else
-        path = arg;
+    if (args[i] == "--verbose") verbose = true;
+    else if (args[i] == "--no-llm") useLlm = false;
+    else path = args[i];
 }
 
 if (path == null)
@@ -20,38 +15,27 @@ if (path == null)
     return 0;
 }
 
-string[] files;
-if (File.Exists(path))
-{
-    files = new string[] { path };
-}
-else
-{
-    files = Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories);
-    Array.Sort(files);
-}
+var files = File.Exists(path)
+    ? new[] { path }
+    : Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories).OrderBy(f => f).ToArray();
 
 if (files.Length == 0)
 {
-    Console.WriteLine("No .cs files found at: " + path);
+    Console.WriteLine($"No .cs files found at: {path}");
     return 0;
 }
 
 int errorCount = 0;
-
-foreach (string file in files)
+foreach (var file in files)
 {
-    string source = File.ReadAllText(file);
-    string clean = Parser.StripComments(source);
-    string[] lines = clean.Split('\n');
-    List<Declaration> declarations = Parser.Extract(lines);
-    List<Violation> violations = Rules.Run(declarations, clean, useLlm);
-
-    foreach (Violation violation in violations)
+    var source = File.ReadAllText(file);
+    var clean = Parser.StripComments(source);
+    var decls = Parser.Extract(clean.Split('\n'));
+    var violations = Rules.Run(decls, clean, useLlm);
+    foreach (var v in violations)
     {
-        Reporter.Print(file, violation, verbose);
-        if (violation.Severity == "error")
-            errorCount++;
+        Reporter.Print(file, v, verbose);
+        if (v.Severity == "error") errorCount++;
     }
 }
 

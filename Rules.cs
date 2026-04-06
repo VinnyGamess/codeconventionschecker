@@ -4,355 +4,208 @@ using System.Text.RegularExpressions;
 
 public class Violation
 {
-    public string Rule;
-    public string Severity;
-    public string Message;
-    public string Suggestion;
+    public string Rule, Severity, Message, Suggestion;
     public int Line;
 
     public Violation(string rule, string severity, string message, string suggestion, int line)
     {
-        Rule = rule;
-        Severity = severity;
-        Message = message;
-        Suggestion = suggestion;
-        Line = line;
+        Rule = rule; Severity = severity; Message = message; Suggestion = suggestion; Line = line;
     }
 }
 
 public static class Rules
 {
-    static readonly List<string> AccessModifiers = new List<string> { "public", "private", "protected", "internal" };
-
-    static readonly List<string> UnityLifecycle = new List<string>
-    {
-        "Update", "FixedUpdate", "LateUpdate",
-        "OnEnable", "OnDisable", "OnDestroy",
+    static readonly string[] AccessMods = { "public", "private", "protected", "internal" };
+    static readonly string[] UnityLifecycle = {
+        "Update", "FixedUpdate", "LateUpdate", "OnEnable", "OnDisable", "OnDestroy",
         "OnCollisionEnter", "OnCollisionStay", "OnCollisionExit",
-        "OnTriggerEnter", "OnTriggerStay", "OnTriggerExit",
+        "OnTriggerEnter", "OnTriggerStay", "OnTriggerExit"
     };
-
     static readonly Regex NumberRe = new Regex(@"\b\d+(?:\.\d+)?[fFdDmMuUlL]?\b");
-    static readonly Regex EnumValueRe = new Regex(@"^\w+\s*(?:=\s*[\d.]+[fFdDmMuUlL]?\s*)?[,]?$");
-    static readonly double[] AllowedNumbers = new double[] { 0, 1, 2 };
-    static readonly List<string> DeclarationWords = new List<string>
-        { "public", "private", "protected", "internal", "readonly", "static", "const" };
+    static readonly Regex EnumRe = new Regex(@"^\w+\s*(?:=\s*[\d.]+[fFdDmMuUlL]?\s*)?[,]?$");
+    static readonly double[] SafeNums = { 0, 1, 2 };
+    static readonly string[] DeclWords = { "public", "private", "protected", "internal", "readonly", "static", "const" };
 
-    static Violation Make(string rule, string severity, string message, string suggestion, int line)
+    static Violation V(string rule, string sev, string msg, string hint, int line) =>
+        new Violation(rule, sev, msg, hint, line);
+
+    static bool IsPascal(string n) => n.Length > 0 && char.IsUpper(n[0]) && !n.Contains('_');
+    static bool IsCamel(string n) => n.Length > 0 && char.IsLower(n[0]) && !n.Contains('_');
+    static bool IsValidField(string n) => n.StartsWith("_") && n.Length > 1 && char.IsLower(n[1]) && !n.Substring(1).Contains('_');
+    static string ToPascal(string n) => n.Length == 0 ? n : char.ToUpper(n[0]) + n.Substring(1);
+    static string ToCamel(string n) { var s = n.TrimStart('_'); return s.Length == 0 ? s : char.ToLower(s[0]) + s.Substring(1); }
+    static bool HasAccessMod(List<string> mods) => mods.Any(m => AccessMods.Contains(m));
+
+    public static List<Violation> Run(List<Declaration> decls, string source, bool useLlm)
     {
-        return new Violation(rule, severity, message, suggestion, line);
+        var vs = new List<Violation>();
+        vs.AddRange(CheckNoPublicFields(decls));
+        vs.AddRange(CheckAccessModifiers(decls));
+        vs.AddRange(CheckTypeNames(decls));
+        vs.AddRange(CheckMethodNames(decls));
+        vs.AddRange(CheckVariableNames(decls));
+        vs.AddRange(CheckPrivateFieldNames(decls));
+        vs.AddRange(CheckMagicNumbers(source));
+        vs.AddRange(CheckSerializeField(decls));
+        vs.AddRange(CheckAwakeVsStart(decls));
+        if (useLlm) vs.AddRange(CheckNamesWithLlm(decls));
+        vs.Sort((a, b) => a.Line - b.Line);
+        return vs;
     }
 
-    static string ToPascalCase(string name)
+    static List<Violation> CheckNoPublicFields(List<Declaration> decls)
     {
-        if (name.Length == 0) return name;
-        return char.ToUpper(name[0]) + name.Substring(1);
-    }
-
-    static string ToCamelCase(string name)
-    {
-        string s = name.TrimStart('_');
-        if (s.Length == 0) return s;
-        return char.ToLower(s[0]) + s.Substring(1);
-    }
-
-    static bool IsPascalCase(string name)
-    {
-        return name.Length > 0 && char.IsUpper(name[0]) && !name.Contains('_');
-    }
-
-    static bool IsCamelCase(string name)
-    {
-        return name.Length > 0 && char.IsLower(name[0]) && !name.Contains('_');
-    }
-
-    static bool IsValidPrivateField(string name)
-    {
-        if (!name.StartsWith("_")) return false;
-        if (name.Length <= 1) return false;
-        if (!char.IsLower(name[1])) return false;
-        if (name.Substring(1).Contains('_')) return false;
-        return true;
-    }
-
-    static bool IsAllowedNumber(double value)
-    {
-        foreach (double n in AllowedNumbers)
-            if (n == value) return true;
-        return false;
-    }
-
-    static int CompareByLine(Violation a, Violation b)
-    {
-        return a.Line - b.Line;
-    }
-
-    public static List<Violation> Run(List<Declaration> declarations, string source, bool useLlm)
-    {
-        List<Violation> violations = new List<Violation>();
-        violations.AddRange(CheckNoPublicFields(declarations));
-        violations.AddRange(CheckAccessModifiers(declarations));
-        violations.AddRange(CheckTypeNames(declarations));
-        violations.AddRange(CheckMethodNames(declarations));
-        violations.AddRange(CheckVariableNames(declarations));
-        violations.AddRange(CheckPrivateFieldNames(declarations));
-        violations.AddRange(CheckMagicNumbers(source));
-        violations.AddRange(CheckSerializeField(declarations));
-        violations.AddRange(CheckAwakeVsStart(declarations));
-        if (useLlm) violations.AddRange(CheckNamesWithLlm(declarations));
-        violations.Sort(CompareByLine);
-        return violations;
-    }
-
-    static List<Violation> CheckNoPublicFields(List<Declaration> declarations)
-    {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
+        var vs = new List<Violation>();
+        foreach (var d in decls)
         {
-            if (d.Kind != "field") continue;
-            if (!d.Modifiers.Contains("public")) continue;
-            if (d.Modifiers.Contains("const")) continue;
-            if (d.Modifiers.Contains("static") && d.Modifiers.Contains("readonly")) continue;
-            violations.Add(Make("CQE001", "error",
-                "Public field '" + d.Name + "' should be a property.",
-                "Replace with: public Type " + ToPascalCase(d.Name) + " { get; set; }", d.Line));
+            if (d.Kind != "field" || !d.Modifiers.Contains("public") || d.Modifiers.Contains("const")
+                || (d.Modifiers.Contains("static") && d.Modifiers.Contains("readonly"))) continue;
+            vs.Add(V("CQE001", "error", $"Public field '{d.Name}' should be a property.",
+                $"Replace with: public Type {ToPascal(d.Name)} {{ get; set; }}", d.Line));
         }
-        return violations;
+        return vs;
     }
 
-    static List<Violation> CheckAccessModifiers(List<Declaration> declarations)
+    static List<Violation> CheckAccessModifiers(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
+        var vs = new List<Violation>();
+        foreach (var d in decls)
         {
-            if (d.Kind == "variable") continue;
-            bool hasAccessModifier = false;
-            foreach (string mod in d.Modifiers)
-            {
-                if (AccessModifiers.Contains(mod))
-                {
-                    hasAccessModifier = true;
-                    break;
-                }
-            }
-            if (hasAccessModifier) continue;
-            string kindCapitalized = char.ToUpper(d.Kind[0]) + d.Kind.Substring(1);
-            violations.Add(Make("CQE002", "error",
-                kindCapitalized + " '" + d.Name + "' has no access modifier.",
-                "Add 'private' (or another modifier) before '" + d.Name + "'.", d.Line));
+            if (d.Kind == "variable" || HasAccessMod(d.Modifiers)) continue;
+            vs.Add(V("CQE002", "error",
+                $"{char.ToUpper(d.Kind[0]) + d.Kind.Substring(1)} '{d.Name}' has no access modifier.",
+                $"Add 'private' (or another modifier) before '{d.Name}'.", d.Line));
         }
-        return violations;
+        return vs;
     }
 
-    static List<Violation> CheckTypeNames(List<Declaration> declarations)
+    static List<Violation> CheckTypeNames(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
+        var vs = new List<Violation>();
+        foreach (var d in decls)
         {
-            if (d.Kind != "class" && d.Kind != "struct" && d.Kind != "interface"
-                && d.Kind != "enum" && d.Kind != "record") continue;
-            if (IsPascalCase(d.Name)) continue;
-            violations.Add(Make("CQE003", "error",
-                "Type '" + d.Name + "' is not PascalCase.",
-                "Rename to '" + ToPascalCase(d.Name) + "'.", d.Line));
+            if (d.Kind is not ("class" or "struct" or "interface" or "enum" or "record")) continue;
+            if (!IsPascal(d.Name))
+                vs.Add(V("CQE003", "error", $"Type '{d.Name}' is not PascalCase.", $"Rename to '{ToPascal(d.Name)}'.", d.Line));
         }
-        return violations;
+        return vs;
     }
 
-    static List<Violation> CheckMethodNames(List<Declaration> declarations)
+    static List<Violation> CheckMethodNames(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
-        {
-            if (d.Kind != "method") continue;
-            if (IsPascalCase(d.Name)) continue;
-            violations.Add(Make("CQE004", "error",
-                "Method '" + d.Name + "' is not PascalCase.",
-                "Rename to '" + ToPascalCase(d.Name) + "'.", d.Line));
-        }
-        return violations;
+        var vs = new List<Violation>();
+        foreach (var d in decls)
+            if (d.Kind == "method" && !IsPascal(d.Name))
+                vs.Add(V("CQE004", "error", $"Method '{d.Name}' is not PascalCase.", $"Rename to '{ToPascal(d.Name)}'.", d.Line));
+        return vs;
     }
 
-    static List<Violation> CheckVariableNames(List<Declaration> declarations)
+    static List<Violation> CheckVariableNames(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
-        {
-            if (d.Kind != "variable") continue;
-            if (IsCamelCase(d.Name)) continue;
-            violations.Add(Make("CQE005", "error",
-                "Variable '" + d.Name + "' is not camelCase.",
-                "Rename to '" + ToCamelCase(d.Name) + "'.", d.Line));
-        }
-        return violations;
+        var vs = new List<Violation>();
+        foreach (var d in decls)
+            if (d.Kind == "variable" && !IsCamel(d.Name))
+                vs.Add(V("CQE005", "error", $"Variable '{d.Name}' is not camelCase.", $"Rename to '{ToCamel(d.Name)}'.", d.Line));
+        return vs;
     }
 
-    static List<Violation> CheckPrivateFieldNames(List<Declaration> declarations)
+    static List<Violation> CheckPrivateFieldNames(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
+        var vs = new List<Violation>();
+        foreach (var d in decls)
         {
             if (d.Kind != "field") continue;
             if (d.Modifiers.Contains("const") || d.Modifiers.Contains("static")) continue;
-            bool isPrivate = d.Modifiers.Contains("private");
-            if (!isPrivate)
-            {
-                bool hasAccessModifier = false;
-                foreach (string mod in d.Modifiers)
-                {
-                    if (AccessModifiers.Contains(mod))
-                    {
-                        hasAccessModifier = true;
-                        break;
-                    }
-                }
-                isPrivate = !hasAccessModifier;
-            }
-            if (!isPrivate) continue;
-            if (IsValidPrivateField(d.Name)) continue;
-            violations.Add(Make("CQE006", "error",
-                "Private field '" + d.Name + "' should be '_camelCase'.",
-                "Rename to '_" + ToCamelCase(d.Name) + "'.", d.Line));
+            bool isPrivate = d.Modifiers.Contains("private") || !HasAccessMod(d.Modifiers);
+            if (!isPrivate || IsValidField(d.Name)) continue;
+            vs.Add(V("CQE006", "error", $"Private field '{d.Name}' should be '_camelCase'.",
+                $"Rename to '_{ToCamel(d.Name)}'.", d.Line));
         }
-        return violations;
+        return vs;
     }
 
     static List<Violation> CheckMagicNumbers(string source)
     {
-        List<Violation> violations = new List<Violation>();
-        int lineNumber = 0;
-        foreach (string rawLine in source.Split('\n'))
+        var vs = new List<Violation>();
+        int lineNum = 0;
+        foreach (var rawLine in source.Split('\n'))
         {
-            lineNumber++;
-            string line = rawLine.Trim();
+            lineNum++;
+            var line = rawLine.Trim();
             if (string.IsNullOrEmpty(line)) continue;
-
-            string[] words = line.Split(' ');
-            bool hasDeclarationWord = false;
-            foreach (string word in words)
+            if (line.Split(' ').Any(w => DeclWords.Contains(w))) continue;
+            if (EnumRe.IsMatch(line)) continue;
+            foreach (Match m in NumberRe.Matches(line))
             {
-                if (DeclarationWords.Contains(word))
-                {
-                    hasDeclarationWord = true;
-                    break;
-                }
-            }
-            if (hasDeclarationWord) continue;
-            if (EnumValueRe.IsMatch(line)) continue;
-
-            foreach (Match match in NumberRe.Matches(line))
-            {
-                string numStr = match.Value.TrimEnd('f', 'F', 'd', 'D', 'm', 'M', 'u', 'U', 'l', 'L');
-                double numValue;
-                if (!double.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out numValue)) continue;
-                if (IsAllowedNumber(numValue)) continue;
-                violations.Add(Make("CQE008", "warning",
-                    "Magic number '" + match.Value + "' found.",
-                    "Replace with a named constant: const float NAME = value;", lineNumber));
+                var numStr = m.Value.TrimEnd('f', 'F', 'd', 'D', 'm', 'M', 'u', 'U', 'l', 'L');
+                if (!double.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double val)) continue;
+                if (SafeNums.Contains(val)) continue;
+                vs.Add(V("CQE008", "warning", $"Magic number '{m.Value}' found.",
+                    "Replace with a named constant: const float NAME = value;", lineNum));
             }
         }
-        return violations;
+        return vs;
     }
 
-    static List<Violation> CheckSerializeField(List<Declaration> declarations)
+    static List<Violation> CheckSerializeField(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        foreach (Declaration d in declarations)
+        var vs = new List<Violation>();
+        foreach (var d in decls)
         {
-            if (d.Kind != "field") continue;
-            if (!d.Modifiers.Contains("public")) continue;
-            if (d.Modifiers.Contains("const") || d.Modifiers.Contains("static")) continue;
-            if (d.Attributes.Contains("SerializeField")) continue;
-            violations.Add(Make("CQE009", "warning",
-                "Public field '" + d.Name + "' exposes Unity serialized data.",
+            if (d.Kind != "field" || !d.Modifiers.Contains("public") || d.Modifiers.Contains("const")
+                || d.Modifiers.Contains("static") || d.Attributes.Contains("SerializeField")) continue;
+            vs.Add(V("CQE009", "warning", $"Public field '{d.Name}' exposes Unity serialized data.",
                 "Use '[SerializeField] private' instead of 'public'.", d.Line));
         }
-        return violations;
+        return vs;
     }
 
-    static List<Violation> CheckAwakeVsStart(List<Declaration> declarations)
+    static List<Violation> CheckAwakeVsStart(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        Dictionary<string, List<Declaration>> byClass = new Dictionary<string, List<Declaration>>();
-
-        foreach (Declaration d in declarations)
+        var vs = new List<Violation>();
+        var byClass = new Dictionary<string, List<Declaration>>();
+        foreach (var d in decls.Where(d => d.Kind == "method"))
         {
-            if (d.Kind != "method") continue;
-            string className;
-            if (d.Parent != null)
-                className = d.Parent;
-            else
-                className = "__global__";
-            if (!byClass.ContainsKey(className))
-                byClass[className] = new List<Declaration>();
-            byClass[className].Add(d);
+            var cls = d.Parent ?? "__global__";
+            if (!byClass.ContainsKey(cls)) byClass[cls] = new List<Declaration>();
+            byClass[cls].Add(d);
         }
-
-        foreach (string className in byClass.Keys)
+        foreach (var kv in byClass)
         {
-            List<Declaration> methods = byClass[className];
-            bool hasAwake = false;
-            bool hasStart = false;
-            bool hasLifecycle = false;
-
-            foreach (Declaration m in methods)
+            var methods = kv.Value;
+            bool hasAwake = methods.Any(m => m.Name == "Awake");
+            bool hasStart = methods.Any(m => m.Name == "Start");
+            bool hasLifecycle = methods.Any(m => UnityLifecycle.Contains(m.Name));
+            switch (hasAwake, hasStart, hasLifecycle)
             {
-                if (m.Name == "Awake") hasAwake = true;
-                if (m.Name == "Start") hasStart = true;
-                if (UnityLifecycle.Contains(m.Name)) hasLifecycle = true;
-            }
-
-            if (hasAwake && hasStart)
-            {
-                Declaration awake = null;
-                foreach (Declaration m in methods)
-                    if (m.Name == "Awake") { awake = m; break; }
-                violations.Add(Make("CQE010", "warning",
-                    "'" + className + "' has both Awake() and Start().",
-                    "Consolidate initialization into Awake() only.", awake.Line));
-            }
-            else if (hasLifecycle && !hasAwake && !hasStart)
-            {
-                Declaration first = null;
-                foreach (Declaration m in methods)
-                {
-                    if (UnityLifecycle.Contains(m.Name))
-                    {
-                        if (first == null || m.Line < first.Line)
-                            first = m;
-                    }
-                }
-                violations.Add(Make("CQE010", "warning",
-                    "'" + className + "' has Unity callbacks but no Awake() or Start().",
-                    "Add an Awake() method for explicit initialization.", first.Line));
+                case (true, true, _):
+                    var awake = methods.First(m => m.Name == "Awake");
+                    vs.Add(V("CQE010", "warning", $"'{kv.Key}' has both Awake() and Start().",
+                        "Consolidate initialization into Awake() only.", awake.Line));
+                    break;
+                case (false, false, true):
+                    var first = methods.Where(m => UnityLifecycle.Contains(m.Name)).OrderBy(m => m.Line).First();
+                    vs.Add(V("CQE010", "warning", $"'{kv.Key}' has Unity callbacks but no Awake() or Start().",
+                        "Add an Awake() method for explicit initialization.", first.Line));
+                    break;
             }
         }
-        return violations;
+        return vs;
     }
 
-    static List<Violation> CheckNamesWithLlm(List<Declaration> declarations)
+    static List<Violation> CheckNamesWithLlm(List<Declaration> decls)
     {
-        List<Violation> violations = new List<Violation>();
-        List<NameKind> candidates = new List<NameKind>();
-        foreach (Declaration d in declarations)
-            if (d.Kind != "variable")
-                candidates.Add(new NameKind(d.Name, d.Kind));
-
-        List<NameResult> flagged = Llm.FindBadNames(candidates);
-
-        Dictionary<string, int> linePerName = new Dictionary<string, int>();
-        foreach (Declaration d in declarations)
-            linePerName[d.Name] = d.Line;
-
-        foreach (NameResult r in flagged)
+        var candidates = decls.Where(d => d.Kind != "variable").Select(d => new NameKind(d.Name, d.Kind)).ToList();
+        var flagged = Llm.FindBadNames(candidates);
+        var linePerName = new Dictionary<string, int>();
+        foreach (var d in decls) linePerName[d.Name] = d.Line;
+        var vs = new List<Violation>();
+        foreach (var r in flagged)
         {
-            int line = 0;
-            if (linePerName.ContainsKey(r.Name))
-                line = linePerName[r.Name];
-            violations.Add(Make("CQE011", "warning",
-                "Unclear name '" + r.Name + "': " + r.Reason,
+            linePerName.TryGetValue(r.Name, out int line);
+            vs.Add(V("CQE011", "warning", $"Unclear name '{r.Name}': {r.Reason}",
                 "Use a clear, descriptive English identifier.", line));
         }
-        return violations;
+        return vs;
     }
 }

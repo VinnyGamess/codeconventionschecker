@@ -1,29 +1,13 @@
 public static class Reporter
 {
-    const string Cyan    = "\x1b[36m";
-    const string Yellow  = "\x1b[33m";
-    const string Red     = "\x1b[31m";
-    const string Green   = "\x1b[32m";
-    const string Magenta = "\x1b[35m";
-    const string Bold    = "\x1b[1m";
-    const string Reset   = "\x1b[0m";
+    const string Cyan = "\x1b[36m", Yellow = "\x1b[33m", Red = "\x1b[31m";
+    const string Green = "\x1b[32m", Magenta = "\x1b[35m", Bold = "\x1b[1m", Reset = "\x1b[0m";
 
-    public static void Print(string filepath, Violation violation, bool verbose)
+    public static void Print(string filepath, Violation v, bool verbose)
     {
-        string color;
-        if (violation.Severity == "error")
-            color = Red;
-        else
-            color = Yellow;
-
-        Console.WriteLine(
-            Cyan + filepath + ":" + violation.Line + Reset + "  " +
-            color + Bold + violation.Severity + Reset + "  " +
-            Magenta + "[" + violation.Rule + "]" + Reset + "  " +
-            violation.Message
-        );
-
-        if (verbose && violation.Suggestion != null && violation.Suggestion != "")
-            Console.WriteLine("  " + Green + "-> " + violation.Suggestion + Reset);
+        var color = v.Severity == "error" ? Red : Yellow;
+        Console.WriteLine($"{Cyan}{filepath}:{v.Line}{Reset}  {color}{Bold}{v.Severity}{Reset}  {Magenta}[{v.Rule}]{Reset}  {v.Message}");
+        if (verbose && !string.IsNullOrEmpty(v.Suggestion))
+            Console.WriteLine($"  {Green}-> {v.Suggestion}{Reset}");
     }
 }
