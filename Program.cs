@@ -30,12 +30,13 @@ foreach (var file in files)
 {
     var source = File.ReadAllText(file);
     var clean = Parser.StripComments(source);
-    var decls = Parser.Extract(clean.Split('\n'));
-    var violations = Rules.Run(decls, clean, useLlm);
-    foreach (var v in violations)
+    var declarations = Parser.Extract(clean.Split('\n'));
+    var violations = Rules.Run(declarations, clean, useLlm);
+
+    foreach (var violation in violations)
     {
-        Reporter.Print(file, v, verbose);
-        if (v.Severity == "error") errorCount++;
+        Reporter.Print(file, violation, verbose);
+        if (violation.Severity == "error") errorCount++;
     }
 }
 

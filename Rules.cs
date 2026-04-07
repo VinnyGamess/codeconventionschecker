@@ -38,95 +38,95 @@ public static class Rules
 
     public static List<Violation> Run(List<Declaration> decls, string source, bool useLlm)
     {
-        var vs = new List<Violation>();
-        vs.AddRange(CheckNoPublicFields(decls));
-        vs.AddRange(CheckAccessModifiers(decls));
-        vs.AddRange(CheckTypeNames(decls));
-        vs.AddRange(CheckMethodNames(decls));
-        vs.AddRange(CheckVariableNames(decls));
-        vs.AddRange(CheckPrivateFieldNames(decls));
-        vs.AddRange(CheckMagicNumbers(source));
-        vs.AddRange(CheckSerializeField(decls));
-        vs.AddRange(CheckAwakeVsStart(decls));
-        if (useLlm) vs.AddRange(CheckNamesWithLlm(decls));
-        vs.Sort((a, b) => a.Line - b.Line);
-        return vs;
+        var violations = new List<Violation>();
+        violations.AddRange(CheckNoPublicFields(decls));
+        violations.AddRange(CheckAccessModifiers(decls));
+        violations.AddRange(CheckTypeNames(decls));
+        violations.AddRange(CheckMethodNames(decls));
+        violations.AddRange(CheckVariableNames(decls));
+        violations.AddRange(CheckPrivateFieldNames(decls));
+        violations.AddRange(CheckMagicNumbers(source));
+        violations.AddRange(CheckSerializeField(decls));
+        violations.AddRange(CheckAwakeVsStart(decls));
+        if (useLlm) violations.AddRange(CheckNamesWithLlm(decls));
+        violations.Sort((a, b) => a.Line - b.Line);
+        return violations;
     }
 
     static List<Violation> CheckNoPublicFields(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
         {
             if (d.Kind != "field" || !d.Modifiers.Contains("public") || d.Modifiers.Contains("const")
                 || (d.Modifiers.Contains("static") && d.Modifiers.Contains("readonly"))) continue;
-            vs.Add(V("CQE001", "error", $"Public field '{d.Name}' should be a property.",
+            violations.Add(V("CQE001", "error", $"Public field '{d.Name}' should be a property.",
                 $"Replace with: public Type {ToPascal(d.Name)} {{ get; set; }}", d.Line));
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckAccessModifiers(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
         {
             if (d.Kind == "variable" || HasAccessMod(d.Modifiers)) continue;
-            vs.Add(V("CQE002", "error",
+            violations.Add(V("CQE002", "error",
                 $"{char.ToUpper(d.Kind[0]) + d.Kind.Substring(1)} '{d.Name}' has no access modifier.",
                 $"Add 'private' (or another modifier) before '{d.Name}'.", d.Line));
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckTypeNames(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
         {
             if (d.Kind is not ("class" or "struct" or "interface" or "enum" or "record")) continue;
             if (!IsPascal(d.Name))
-                vs.Add(V("CQE003", "error", $"Type '{d.Name}' is not PascalCase.", $"Rename to '{ToPascal(d.Name)}'.", d.Line));
+                violations.Add(V("CQE003", "error", $"Type '{d.Name}' is not PascalCase.", $"Rename to '{ToPascal(d.Name)}'.", d.Line));
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckMethodNames(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
             if (d.Kind == "method" && !IsPascal(d.Name))
-                vs.Add(V("CQE004", "error", $"Method '{d.Name}' is not PascalCase.", $"Rename to '{ToPascal(d.Name)}'.", d.Line));
-        return vs;
+                violations.Add(V("CQE004", "error", $"Method '{d.Name}' is not PascalCase.", $"Rename to '{ToPascal(d.Name)}'.", d.Line));
+        return violations;
     }
 
     static List<Violation> CheckVariableNames(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
             if (d.Kind == "variable" && !IsCamel(d.Name))
-                vs.Add(V("CQE005", "error", $"Variable '{d.Name}' is not camelCase.", $"Rename to '{ToCamel(d.Name)}'.", d.Line));
-        return vs;
+                violations.Add(V("CQE005", "error", $"Variable '{d.Name}' is not camelCase.", $"Rename to '{ToCamel(d.Name)}'.", d.Line));
+        return violations;
     }
 
     static List<Violation> CheckPrivateFieldNames(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
         {
             if (d.Kind != "field") continue;
             if (d.Modifiers.Contains("const") || d.Modifiers.Contains("static")) continue;
             bool isPrivate = d.Modifiers.Contains("private") || !HasAccessMod(d.Modifiers);
             if (!isPrivate || IsValidField(d.Name)) continue;
-            vs.Add(V("CQE006", "error", $"Private field '{d.Name}' should be '_camelCase'.",
+            violations.Add(V("CQE006", "error", $"Private field '{d.Name}' should be '_camelCase'.",
                 $"Rename to '_{ToCamel(d.Name)}'.", d.Line));
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckMagicNumbers(string source)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         int lineNum = 0;
         foreach (var rawLine in source.Split('\n'))
         {
@@ -140,29 +140,29 @@ public static class Rules
                 var numStr = m.Value.TrimEnd('f', 'F', 'd', 'D', 'm', 'M', 'u', 'U', 'l', 'L');
                 if (!double.TryParse(numStr, NumberStyles.Any, CultureInfo.InvariantCulture, out double val)) continue;
                 if (SafeNums.Contains(val)) continue;
-                vs.Add(V("CQE008", "warning", $"Magic number '{m.Value}' found.",
+                violations.Add(V("CQE008", "warning", $"Magic number '{m.Value}' found.",
                     "Replace with a named constant: const float NAME = value;", lineNum));
             }
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckSerializeField(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var d in decls)
         {
             if (d.Kind != "field" || !d.Modifiers.Contains("public") || d.Modifiers.Contains("const")
                 || d.Modifiers.Contains("static") || d.Attributes.Contains("SerializeField")) continue;
-            vs.Add(V("CQE009", "warning", $"Public field '{d.Name}' exposes Unity serialized data.",
+            violations.Add(V("CQE009", "warning", $"Public field '{d.Name}' exposes Unity serialized data.",
                 "Use '[SerializeField] private' instead of 'public'.", d.Line));
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckAwakeVsStart(List<Declaration> decls)
     {
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         var byClass = new Dictionary<string, List<Declaration>>();
         foreach (var d in decls.Where(d => d.Kind == "method"))
         {
@@ -180,17 +180,17 @@ public static class Rules
             {
                 case (true, true, _):
                     var awake = methods.First(m => m.Name == "Awake");
-                    vs.Add(V("CQE010", "warning", $"'{kv.Key}' has both Awake() and Start().",
+                    violations.Add(V("CQE010", "warning", $"'{kv.Key}' has both Awake() and Start().",
                         "Consolidate initialization into Awake() only.", awake.Line));
                     break;
                 case (false, false, true):
                     var first = methods.Where(m => UnityLifecycle.Contains(m.Name)).OrderBy(m => m.Line).First();
-                    vs.Add(V("CQE010", "warning", $"'{kv.Key}' has Unity callbacks but no Awake() or Start().",
+                    violations.Add(V("CQE010", "warning", $"'{kv.Key}' has Unity callbacks but no Awake() or Start().",
                         "Add an Awake() method for explicit initialization.", first.Line));
                     break;
             }
         }
-        return vs;
+        return violations;
     }
 
     static List<Violation> CheckNamesWithLlm(List<Declaration> decls)
@@ -199,13 +199,13 @@ public static class Rules
         var flagged = Llm.FindBadNames(candidates);
         var linePerName = new Dictionary<string, int>();
         foreach (var d in decls) linePerName[d.Name] = d.Line;
-        var vs = new List<Violation>();
+        var violations = new List<Violation>();
         foreach (var r in flagged)
         {
             linePerName.TryGetValue(r.Name, out int line);
-            vs.Add(V("CQE011", "warning", $"Unclear name '{r.Name}': {r.Reason}",
+            violations.Add(V("CQE011", "warning", $"Unclear name '{r.Name}': {r.Reason}",
                 "Use a clear, descriptive English identifier.", line));
         }
-        return vs;
+        return violations;
     }
 }

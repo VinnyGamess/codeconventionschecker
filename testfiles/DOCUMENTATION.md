@@ -117,6 +117,28 @@ De exitcode is functioneel onderdeel van het ontwerp: het programma geeft exitco
 
 De parser is verantwoordelijk voor het extraheren van alle declaraties uit een C# bronbestand. Het resultaat is een lijst van `Declaration` objecten die elk één gevonden structuur beschrijven: een klasse, methode, veld of lokale variabele.
 
+#### Wat is een reguliere expressie?
+
+Een reguliere expressie (afgekort *regex*) is een patroon waarmee je tekst doorzoekt. Je beschrijft in een speciale syntax *hoe een stuk tekst eruit moet zien*, en de regex-motor doorloopt een string om te kijken of er een stukje tekst is dat aan dat patroon voldoet.
+
+Een eenvoudig voorbeeld: het patroon `\d+` matcht één of meer cijfers. Als je dat patroon loslaat op de tekst `"speler heeft 42 punten"`, vindt het `42`. Het patroon `\w+` matcht één of meer letters, cijfers of underscores — dus woorden en identifiers.
+
+In de code wordt regex gebruikt om dingen als dit te herkennen:
+
+```
+public class PlayerController
+```
+
+Het patroon voor types ziet er zo uit:
+
+```regex
+^((?:(?:public|private|...|partial)\s+)*)(class|struct|interface|enum|record)\s+(\w+)
+```
+
+Dit patroon zegt letterlijk: begin van de regel (`^`), gevolgd door nul of meer modifier-woorden zoals `public` of `abstract`, gevolgd door één van de type-sleutelwoorden (`class`, `struct` enzovoort), gevolgd door een spatie, gevolgd door de naam (een woord: `\w+`). De haakjes `(...)` zijn *groepen* — alles wat daarbinnen matcht, wordt afzonderlijk opgeslagen. Na de match lees je dus: groep 1 = `"public "`, groep 2 = `"class"`, groep 3 = `"PlayerController"`.
+
+Zo werkt het voor methoden en velden ook, met eigen patronen. Dat maakt het mogelijk om in één stap zowel het *soort* declaratie als de *naam* en de *modifiers* te herkennen, zonder de regel zelf handmatig te hoeven splitsen op spaties of woorden.
+
 #### De keuze voor reguliere expressies
 
 Bij het ontwerpen van de parser bestond de keuze tussen twee aanpakken: een volledige syntaxparser zoals Roslyn, de officiële C# compiler-API, of een aanpak gebaseerd op reguliere expressies. Roslyn geeft een volledige, semantisch rijke representatie van de code en herkent elk construct van de taal foutloos [5]. Reguliere expressies zijn echter veel eenvoudiger te implementeren en te begrijpen voor iemand die de code voor het eerst leest.
@@ -135,6 +157,27 @@ Voordat de parser begint met zoeken verwijdert hij alle commentaar en string-lit
 
 Dit patroon matcht verbatim strings (`@"..."`), gewone strings (`"..."`), karakterliterals (`'...'`), regelcommentaar (`// ...`) en blokcommentaar (`/* ... */`). Strings en karakterliterals worden teruggegeven onveranderd zodat de regelnummers intact blijven, terwijl commentaar wordt vervangen door een even groot aantal newlines. Dat laatste is essentieel: als commentaar simpelweg zou worden verwijderd, zouden alle regelnummers na een blokcommentaar verkeerd zijn [9].
 
+**Waarom is dit überhaupt nodig?**
+
+Stel dat iemand dit in de code heeft staan:
+
+```csharp
+// public class OudeKlasse
+// private float speed;
+```
+
+Zonder commentaar strippen zou de parser denken dat er een klasse `OudeKlasse` en een veld `speed` in de code zitten. Dat zijn valse meldingen op code die helemaal niet actief is.
+
+Hetzelfde geldt voor strings:
+
+```csharp
+string uitleg = "gebruik public class Foo als voorbeeld";
+```
+
+De tekst `public class Foo` staat hier in een string-literal — het is data, geen code. Zonder de string eerst weg te halen zou de parser ten onrechte een klasse `Foo` herkennen.
+
+Door commentaar en strings als eerste stap te verwijderen, ziet de parser alleen de daadwerkelijke C# structuur. Regelnummers blijven kloppen omdat commentaar wordt vervangen door evenveel lege regels — de regels schuiven dus niet op.
+
 #### Scope-gebaseerd scannen
 
 De parser leest het bestand regel voor regel en houdt bij in welke scope elke regel valt via een stack. Elke keer dat er een `{` wordt gevonden, wordt een scope op de stack geplaatst. Bij een `}` wordt de bovenste scope er weer afgehaald. De naam van de scope (`"namespace"`, `"type"`, `"method"`, `"block"`) vertelt de parser wat voor declaraties er op die plek te verwachten zijn.
@@ -152,13 +195,70 @@ switch (scope)
 
 Binnen de `"type"` case wordt geprobeerd eerst een methode te herkennen, en als dat mislukt een veld. Constructors worden uitgefilterd door te controleren of de methodenaam gelijk is aan de naam van de omsluitende klasse. De naam van die omsluitende klasse wordt bijgehouden in een aparte `classStack`, zodat elke gevonden declaratie ook de naam van zijn parent-klasse meekrijgt als `Parent` property.
 
+**Waarom is de scope-stack nodig?**
+
+Dezelfde regex die een methode herkent — `naam(` — zou ook een aanroep als `GetComponent<T>(` herkennen als die bovenaan een .cs-bestand stond. Het verschil tussen een declaratie en een aanroep is niet zichtbaar in één regel tekst: het is context. Door bij te houden waar je je bevindt in de code, weet de parser op welke plekken declaraties *kunnen* voorkomen en op welke plekken alleen statements staan.
+
+Een concreet voorbeeld met een klein C# bestand:
+
+```csharp
+namespace GameLogic               // regel 1
+{                                 // regel 2  → push "namespace"
+    public class PlayerController // regel 3  → Declaration gevonden: class "PlayerController"
+    {                             // regel 4  → push "type", classStack = ["PlayerController"]
+        private float _speed;     // regel 5  → Declaration gevonden: field "_speed"
+        public void Move()        // regel 6  → Declaration gevonden: method "Move"
+        {                         // regel 7  → push "method"
+            float step = 0.1f;    // regel 8  → Declaration gevonden: variable "step"
+        }                         // regel 9  → pop "method"
+    }                             // regel 10 → pop "type", classStack = []
+}                                 // regel 11 → pop "namespace"
+```
+
+Op regel 5 staat de scope bovenaan de stack op `"type"` — de parser weet dus dat het een veld of methode moet zijn, en `MatchField` herkent `_speed`. Op regel 8 staat de scope op `"method"` — daar mogen alleen lokale variabelen staan, en `MatchVariable` herkent `step`. Als de scope-stack er niet was, zou de parser op regel 8 óók proberen een methode te vinden, en `step` zou als methodenaam worden gemeld.
+
 #### De Declaration klasse
 
 Elk gevonden element wordt opgeslagen als een `Declaration` met zes eigenschappen. `Kind` beschrijft wat het is: `"class"`, `"struct"`, `"interface"`, `"enum"`, `"record"`, `"method"`, `"field"` of `"variable"`. `Name` is de identifier zoals die in de code staat. `Modifiers` is een lijst van sleutelwoorden die voor de declaratie staan, zoals `public`, `private`, `static` of `readonly`. `Attributes` bevat eventuele C# attributen die op de vorige regel stonden, zoals `SerializeField`. `Line` is het regelnummer in het originele bestand, en `Parent` is de naam van de klasse waar de declaratie in zit.
 
+**Waarom een klasse en niet gewoon tekst doorgeven?**
+
+Je zou na het parsen elke gevonden naam als losse string kunnen bijhouden — maar dan ben je direct het bijbehorende regelnummer kwijt, je weet niet meer of het een methode of een veld was, en je weet niet welke modifiers erop stonden. Zodra je ook maar één extra stuk informatie nodig hebt, heb je een structuur nodig.
+
+Door alles in één `Declaration` object te stoppen, kan elke regel-check in `Rules.cs` precies datgene opvragen wat hij nodig heeft zonder opnieuw door de broncode te hoeven zoeken. `CheckPrivateFieldNames` kijkt naar `d.Kind == "field"` en `d.Modifiers.Contains("private")`. `CheckSerializeField` kijkt naar `d.Attributes.Contains("SerializeField")`. Zonder de klasse zou elke check opnieuw regex moeten draaien op de ruwe code.
+
+Een concrete `Declaration` voor deze C# regel:
+
+```csharp
+[SerializeField] private float _jumpHeight = 5f;
+```
+
+ziet er intern zo uit:
+
+| Eigenschap | Waarde |
+|---|---|
+| `Kind` | `"field"` |
+| `Name` | `"_jumpHeight"` |
+| `Modifiers` | `["private"]` |
+| `Attributes` | `["SerializeField"]` |
+| `Line` | `12` |
+| `Parent` | `"PlayerController"` |
+
+Elke check krijgt een lijst van dit soort objecten. De checks hoeven de broncode nooit opnieuw te lezen.
+
 ### Rules.cs — De controlelogica
 
 `Rules.cs` bevat alle controleregels en de twee dataklassen `Violation` en de helpers die daarvoor nodig zijn. De `Run` methode voert alle checks sequentieel uit, verzamelt de violations, en sorteert ze op regelnummer voordat ze worden teruggegeven. De sortering zorgt ervoor dat de output in de terminal in dezelfde volgorde staat als de code in het bestand.
+
+**Waarom worden violations verzameld in een lijst in plaats van direct geprint?**
+
+Elke check-methode geeft een lijst van `Violation` objecten terug in plaats van de fouten direct naar de console te schrijven. Dit lijkt op het eerste gezicht een omweg, maar het heeft een duidelijke reden: als iedere check zelf zou printen, zou de output in willekeurige volgorde verschijnen — CQE001 voor regel 50, dan CQE005 voor regel 3, dan CQE003 voor regel 12. Dat maakt de output moeilijk te lezen.
+
+Door alle violations eerst te verzamelen kan de `Run` methode ze sorteren op regelnummer. De developer ziet de fouten dan precies in de volgorde van zijn bestand, van boven naar beneden, net zoals een compiler dat doet. Bovendien kan de `Reporter` op die manier kleuren, formattering en de `--verbose` vlag centraal afhandelen zonder dat elke check daarvoor code moet bevatten.
+
+**Waarom is elke check een aparte methode?**
+
+In de eerste versie zou je in theorie één grote loop kunnen hebben die tegelijk op PascalCase, access modifiers en magic numbers controleert. Dat is sneller te schrijven, maar zodra je een regel wil aanpassen, uitbreiden of debuggen, moet je door een groot blok logica. Door elke check te scheiden in zijn eigen methode — `CheckTypeNames`, `CheckMagicNumbers`, `CheckAwakeVsStart` — is het toevoegen van een nieuwe regel simpelweg een nieuwe methode schrijven en die aanroepen in `Run()`. De rest van de code hoeft niet aangeraakt te worden.
 
 #### Overzicht van alle regels
 
@@ -183,6 +283,10 @@ De check op publieke velden (CQE001) maakt een uitzondering voor `const` en voor
 
 De controle op access modifiers (CQE002) slaat lokale variabelen expliciet over, omdat die per definitie geen access modifier hebben in C#. Alle andere declaraties, klassen, methoden en velden, moeten expliciet een modifier hebben. Het impliciet private-zijn van een methode zonder modifier is weliswaar geldig C#, maar vermindert de leesbaarheid doordat de intentie niet direct duidelijk is [1].
 
+**Waarom zijn CQE001 en CQE009 allebei nodig als ze allebei op publieke velden letten?**
+
+Ze controleren hetzelfde feit — het veld is publiek — maar om verschillende redenen. CQE001 zegt: *een publiek veld zou een property moeten zijn*, want in C# is het de conventie om data te ontsluiten via properties die je kunt voorzien van validatie, readonly-gedrag et cetera. CQE009 zegt: *dit publieke veld is waarschijnlijk alleen publiek gemaakt zodat Unity het serialiseert*, wat een Unity-specifiek probleem is dat los staat van de algemene property-conventie. In de praktijk worden beide violations bij hetzelfde veld gemeld, wat de developer twee concrete redenen geeft om het aan te passen.
+
 Het gebruik van C# pattern matching maakt de type-check voor CQE003 compact leesbaar:
 
 ```csharp
@@ -198,7 +302,25 @@ const float MaxHeight = 45.0f;
 if (transform.position.y > MaxHeight)
 ```
 
-De implementatie gebruikt een Regex om getallen te vinden en slaat regels over die een declaratiewoord bevatten (`public`, `private`, `const` enzovoort), zodat de constante zelf niet als magic number wordt gemeld. De getallen `0`, `1` en `2` zijn als uitzonderingen opgenomen omdat die in de meeste contexten vanzelfsprekend zijn.
+**Hoe weet de check dat een getal een magic number is en geen onderdeel van een declaratie?**
+
+De regex `\b\d+(?:\.\d+)?[fFdDmMuUlL]?\b` vindt alle numerieke literals in een regel. Maar diezelfde regex zou ook dit vlaggen:
+
+```csharp
+private const float Gravity = 9.81f;
+```
+
+Terwijl dat juist de *correcte* definitie van een constante is. De check omzeilt dit door regels over te slaan die een declaratiewoord bevatten — `public`, `private`, `protected`, `internal`, `readonly`, `static` of `const`. Op zo'n regel staat waarschijnlijk een declaratie, en de waarde die eraan wordt toegekend is de definitie, niet het gebruik.
+
+Hetzelfde geldt voor enum-definities:
+
+```csharp
+enum Richting { Noord = 0, Oost = 1, Zuid = 2, West = 3 }
+```
+
+De getallen `0`, `1`, `2`, `3` zijn daar enum-waarden, geen magic numbers. Een aparte regex herkent enum-achtige regels en slaat ze over.
+
+De getallen `0`, `1` en `2` worden als uitzondering nooit gemeld, omdat die in de meeste contexten vanzelfsprekend zijn — denk aan `for (int i = 0; i < count; i++)` of `transform.localScale = Vector3.one * 2`.
 
 #### Unity-specifieke regels (CQE009 en CQE010)
 
