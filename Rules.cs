@@ -17,7 +17,7 @@ public static class Rules
 {
     static readonly string[] AccessMods = { "public", "private", "protected", "internal" };
     static readonly string[] UnityLifecycle = {
-        "Update", "FixedUpdate", "LateUpdate", "OnEnable", "OnDisable", "OnDestroy",
+        "Awake", "Start", "Update", "FixedUpdate", "LateUpdate", "OnEnable", "OnDisable", "OnDestroy",
         "OnCollisionEnter", "OnCollisionStay", "OnCollisionExit",
         "OnTriggerEnter", "OnTriggerStay", "OnTriggerExit"
     };
@@ -59,9 +59,10 @@ public static class Rules
         foreach (var d in decls)
         {
             if (d.Kind != "field" || !d.Modifiers.Contains("public") || d.Modifiers.Contains("const")
-                || (d.Modifiers.Contains("static") && d.Modifiers.Contains("readonly"))) continue;
+                || (d.Modifiers.Contains("static") && d.Modifiers.Contains("readonly"))
+                || d.IsInterfaceMember) continue;
             violations.Add(V("CQE001", "error", $"Public field '{d.Name}' should be a property.",
-                $"Replace with: public Type {ToPascal(d.Name)} {{ get; set; }}", d.Line));
+                $"Replace with: public Type {ToPascal(d.Name)} => _{ToCamel(d.Name)};", d.Line));
         }
         return violations;
     }
@@ -71,7 +72,7 @@ public static class Rules
         var violations = new List<Violation>();
         foreach (var d in decls)
         {
-            if (d.Kind == "variable" || HasAccessMod(d.Modifiers)) continue;
+            if (d.Kind == "variable" || HasAccessMod(d.Modifiers) || d.IsInterfaceMember) continue;
             violations.Add(V("CQE002", "error",
                 $"{char.ToUpper(d.Kind[0]) + d.Kind.Substring(1)} '{d.Name}' has no access modifier.",
                 $"Add 'private' (or another modifier) before '{d.Name}'.", d.Line));
@@ -153,7 +154,8 @@ public static class Rules
         foreach (var d in decls)
         {
             if (d.Kind != "field" || !d.Modifiers.Contains("public") || d.Modifiers.Contains("const")
-                || d.Modifiers.Contains("static") || d.Attributes.Contains("SerializeField")) continue;
+                || d.Modifiers.Contains("static") || d.Attributes.Contains("SerializeField")
+                || d.IsInterfaceMember) continue;
             violations.Add(V("CQE009", "warning", $"Public field '{d.Name}' exposes Unity serialized data.",
                 "Use '[SerializeField] private' instead of 'public'.", d.Line));
         }
@@ -195,7 +197,9 @@ public static class Rules
 
     static List<Violation> CheckNamesWithLlm(List<Declaration> decls)
     {
-        var candidates = decls.Where(d => d.Kind != "variable").Select(d => new NameKind(d.Name, d.Kind)).ToList();
+        var candidates = decls
+            .Where(d => d.Kind != "variable" && !UnityLifecycle.Contains(d.Name))
+            .Select(d => new NameKind(d.Name, d.Kind)).ToList();
         var flagged = Llm.FindBadNames(candidates);
         var linePerName = new Dictionary<string, int>();
         foreach (var d in decls) linePerName[d.Name] = d.Line;

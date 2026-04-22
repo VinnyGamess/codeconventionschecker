@@ -6,6 +6,7 @@ public class Declaration
     public string Kind, Name, Parent;
     public List<string> Modifiers, Attributes;
     public int Line;
+    public bool IsInterfaceMember;
 
     public Declaration(string kind, string name, List<string> modifiers, List<string> attributes, int line, string parent = null)
     {
@@ -100,6 +101,8 @@ public static class Parser
     static Declaration MatchField(string line, List<string> attrs, int ln)
     {
         if (Contains(ControlFlow, FirstWord(line))) return null;
+        if (line.Contains("=>")) return null; // expression-bodied property, not a field
+        if (Regex.IsMatch(line, @"\bevent\b")) return null; // event declarations are intentionally public
         var m = FieldRe.Match(line);
         if (!m.Success || Contains(ReservedWords, m.Groups[2].Value)) return null;
         return new Declaration("field", m.Groups[2].Value, SplitMods(m.Groups[1].Value), attrs, ln);
@@ -145,7 +148,7 @@ public static class Parser
             {
                 case "global": case "namespace":
                     found = MatchType(line, new List<string>(pendingAttrs), ln);
-                    if (found != null) { scopeForBrace = "type"; classForBrace = found.Name; }
+                    if (found != null) { scopeForBrace = found.Kind == "interface" ? "interface" : "type"; classForBrace = found.Name; }
                     break;
                 case "type":
                     found = MatchMethod(line, new List<string>(pendingAttrs), ln)
@@ -154,6 +157,18 @@ public static class Parser
                     {
                         var parent = classStack.Count > 0 ? classStack.Peek() : null;
                         found = new Declaration(found.Kind, found.Name, found.Modifiers, found.Attributes, found.Line, parent);
+                        if (found.Kind == "method" && found.Name == found.Parent) found = null;
+                        else if (found?.Kind == "method") scopeForBrace = "method";
+                    }
+                    break;
+                case "interface":
+                    found = MatchMethod(line, new List<string>(pendingAttrs), ln)
+                         ?? MatchField(line, new List<string>(pendingAttrs), ln);
+                    if (found != null)
+                    {
+                        var parent = classStack.Count > 0 ? classStack.Peek() : null;
+                        found = new Declaration(found.Kind, found.Name, found.Modifiers, found.Attributes, found.Line, parent);
+                        found.IsInterfaceMember = true;
                         if (found.Kind == "method" && found.Name == found.Parent) found = null;
                         else if (found?.Kind == "method") scopeForBrace = "method";
                     }
@@ -171,7 +186,7 @@ public static class Parser
             {
                 var s = (b == 0 && scopeForBrace != null) ? scopeForBrace : "block";
                 scopeStack.Push(s);
-                if (s == "type" && classForBrace != null)
+                if ((s == "type" || s == "interface") && classForBrace != null)
                 {
                     classStack.Push(classForBrace);
                     classForBrace = null;
@@ -185,7 +200,7 @@ public static class Parser
                 if (scopeStack.Count > 0)
                 {
                     var popped = scopeStack.Pop();
-                    if (popped == "type" && classStack.Count > 0) classStack.Pop();
+                    if ((popped == "type" || popped == "interface") && classStack.Count > 0) classStack.Pop();
                 }
             }
         }
