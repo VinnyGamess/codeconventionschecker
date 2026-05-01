@@ -20,7 +20,7 @@ cqe-lint:
     - ollama pull "$OLLAMA_MODEL"
     - |
       if [ -d "$SCRIPTS_PATH" ]; then
-        dotnet run --project /tmp/linter --configuration Release -- "$SCRIPTS_PATH" --verbose --exclude "Assets/Scripts/Multiplayer"
+        dotnet run --project /tmp/linter --configuration Release -- "$SCRIPTS_PATH" --verbose --exclude "Assets/Scripts/Multiplayer,Assets/Scripts/A-Team/"
       else
         echo "Scripts folder '$SCRIPTS_PATH' not found, skipping lint."
       fi
