@@ -1,11 +1,16 @@
 #nullable disable
 string path = null;
 bool verbose = false, useLlm = true;
+var excludePatterns = new List<string>();
 
 for (int i = 0; i < args.Length; i++)
 {
     if (args[i] == "--verbose") verbose = true;
     else if (args[i] == "--no-llm") useLlm = false;
+    else if (args[i] == "--exclude" && i + 1 < args.Length)
+    {
+        excludePatterns.AddRange(args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    }
     else path = args[i];
 }
 
@@ -15,9 +20,11 @@ if (path == null)
     return 0;
 }
 
-var files = File.Exists(path)
+var files = (File.Exists(path)
     ? new[] { path }
-    : Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories).OrderBy(f => f).ToArray();
+    : Directory.GetFiles(path, "*.cs", SearchOption.AllDirectories).OrderBy(f => f).ToArray())
+    .Where(f => excludePatterns.Count == 0 || !excludePatterns.Any(p => f.Replace('\\', '/').Contains(p.Replace('\\', '/'), StringComparison.OrdinalIgnoreCase)))
+    .ToArray();
 
 if (files.Length == 0)
 {

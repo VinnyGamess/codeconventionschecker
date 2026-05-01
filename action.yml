@@ -14,6 +14,10 @@ inputs:
     description: 'Ollama model to use for naming checks (e.g. llama3.2). Leave empty to skip CQE011.'
     required: false
     default: ''
+  exclude:
+    description: 'Comma-separated list of path substrings to exclude from scanning (e.g. "Assets/Scripts/Multiplayer,ThirdParty")'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -53,5 +57,8 @@ runs:
         fi
         if [ "${{ inputs.verbose }}" = "true" ]; then
           FLAGS="$FLAGS --verbose"
+        fi
+        if [ "${{ inputs.exclude }}" != "" ]; then
+          FLAGS="$FLAGS --exclude \"${{ inputs.exclude }}\""
         fi
         dotnet run --project "${{ github.action_path }}" --configuration Release -- "${{ inputs.path }}" $FLAGS
